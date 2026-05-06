@@ -61,12 +61,14 @@ class PrestamistaRepository(
         amount: Double,
         paymentDate: String,
         paymentMethod: String,
+        mobileUuid: String,
     ): PaymentReceipt = apiClient.registerCollectorPayment(
         token = requiredToken(),
         loanId = loanId,
         amount = amount,
         paymentDate = paymentDate,
         paymentMethod = paymentMethod,
+        mobileUuid = mobileUuid,
     )
 
     fun logout() {

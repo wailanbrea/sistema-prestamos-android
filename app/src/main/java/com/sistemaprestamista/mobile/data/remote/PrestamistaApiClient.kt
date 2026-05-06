@@ -155,12 +155,14 @@ class PrestamistaApiClient {
         amount: Double,
         paymentDate: String,
         paymentMethod: String,
+        mobileUuid: String,
     ): PaymentReceipt {
         val payload = JSONObject()
             .put("loan_id", loanId)
             .put("amount", amount)
             .put("payment_date", paymentDate)
             .put("payment_method", paymentMethod)
+            .put("mobile_uuid", mobileUuid)
 
         val json = request(
             path = "collector/payments",

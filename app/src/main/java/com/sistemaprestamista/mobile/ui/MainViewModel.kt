@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.util.UUID
 
 class MainViewModel(
     private val repository: PrestamistaRepository,
@@ -107,6 +108,7 @@ class MainViewModel(
                         amount = amount,
                         paymentDate = LocalDate.now().toString(),
                         paymentMethod = paymentMethod,
+                        mobileUuid = UUID.randomUUID().toString(),
                     )
                     val dashboard = repository.dashboard()
                     val collectorWorkload = loadCollectorWorkloadIfAllowed(uiState.value.user?.permissions.orEmpty())
