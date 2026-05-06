@@ -15,6 +15,7 @@ import com.sistemaprestamista.mobile.data.model.UserProfile
 data class AppUiState(
     val isLoading: Boolean = true,
     val hasSavedSession: Boolean = false,
+    val pendingPaymentCount: Int = 0,
     val user: UserProfile? = null,
     val dashboard: DashboardSummary? = null,
     val collectorSummary: CollectorSummary? = null,

@@ -1,25 +1,35 @@
 package com.sistemaprestamista.mobile.data
 
-import com.sistemaprestamista.mobile.data.model.DashboardSummary
+import android.content.Context
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
-import com.sistemaprestamista.mobile.data.model.InstallmentSummary
+import com.sistemaprestamista.mobile.data.model.DashboardSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentDetail
+import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.data.model.UserProfile
+import com.sistemaprestamista.mobile.data.pending.PendingPayment
+import com.sistemaprestamista.mobile.data.pending.PendingPaymentStore
+import com.sistemaprestamista.mobile.data.remote.ApiException
 import com.sistemaprestamista.mobile.data.remote.PrestamistaApiClient
+import com.sistemaprestamista.mobile.sync.PendingPaymentSyncScheduler
+import java.io.IOException
 
 class PrestamistaRepository(
+    private val context: Context,
     private val apiClient: PrestamistaApiClient,
     private val sessionStore: SessionStore,
+    private val pendingPaymentStore: PendingPaymentStore,
 ) {
     fun savedToken(): String? = sessionStore.token()
 
     fun hasSavedSession(): Boolean = sessionStore.hasToken()
+
+    fun pendingPaymentCount(): Int = pendingPaymentStore.pendingCount()
 
     fun login(email: String, password: String): UserProfile {
         val result = apiClient.login(
@@ -28,6 +38,7 @@ class PrestamistaRepository(
             deviceName = "Android",
         )
         sessionStore.saveToken(result.accessToken)
+        enqueuePendingPaymentSync()
 
         return result.user
     }
@@ -66,14 +77,87 @@ class PrestamistaRepository(
         paymentDate: String,
         paymentMethod: String,
         mobileUuid: String,
-    ): PaymentReceipt = apiClient.registerCollectorPayment(
-        token = requiredToken(),
-        loanId = loanId,
-        amount = amount,
-        paymentDate = paymentDate,
-        paymentMethod = paymentMethod,
-        mobileUuid = mobileUuid,
-    )
+    ): PaymentRegistrationResult {
+        val pendingPayment = pendingPaymentStore.create(
+            loanId = loanId,
+            amount = amount,
+            paymentDate = paymentDate,
+            paymentMethod = paymentMethod,
+            mobileUuid = mobileUuid,
+        )
+
+        return runCatching {
+            sendPendingPayment(pendingPayment)
+        }.fold(
+            onSuccess = { receipt ->
+                pendingPaymentStore.delete(mobileUuid)
+                PaymentRegistrationResult.Sent(receipt)
+            },
+            onFailure = { throwable ->
+                when (throwable) {
+                    is ApiException -> {
+                        pendingPaymentStore.delete(mobileUuid)
+                        throw throwable
+                    }
+                    else -> {
+                        pendingPaymentStore.incrementAttempts(mobileUuid, throwable.message)
+                        enqueuePendingPaymentSync()
+                        PaymentRegistrationResult.Queued(pendingPaymentStore.pendingCount())
+                    }
+                }
+            },
+        )
+    }
+
+    fun syncPendingPayments(): PendingPaymentSyncResult {
+        if (!hasSavedSession()) {
+            return PendingPaymentSyncResult(
+                sent = 0,
+                failed = 0,
+                remaining = pendingPaymentStore.pendingCount(),
+                requiresRetry = false,
+            )
+        }
+
+        var sent = 0
+        var failed = 0
+        var requiresRetry = false
+
+        for (pendingPayment in pendingPaymentStore.pendingForSync()) {
+            try {
+                sendPendingPayment(pendingPayment)
+                pendingPaymentStore.delete(pendingPayment.mobileUuid)
+                sent++
+            } catch (exception: ApiException) {
+                pendingPaymentStore.markFailed(
+                    mobileUuid = pendingPayment.mobileUuid,
+                    message = exception.message ?: "Error del servidor.",
+                )
+                failed++
+            } catch (exception: IOException) {
+                pendingPaymentStore.incrementAttempts(pendingPayment.mobileUuid, exception.message)
+                requiresRetry = true
+                break
+            } catch (exception: RuntimeException) {
+                pendingPaymentStore.incrementAttempts(pendingPayment.mobileUuid, exception.message)
+                requiresRetry = true
+                break
+            }
+        }
+
+        return PendingPaymentSyncResult(
+            sent = sent,
+            failed = failed,
+            remaining = pendingPaymentStore.pendingCount(),
+            requiresRetry = requiresRetry,
+        )
+    }
+
+    fun enqueuePendingPaymentSync() {
+        if (pendingPaymentStore.pendingCount() > 0 && hasSavedSession()) {
+            PendingPaymentSyncScheduler.enqueue(context)
+        }
+    }
 
     fun logout() {
         val token = sessionStore.token()
@@ -83,7 +167,18 @@ class PrestamistaRepository(
         sessionStore.clear()
     }
 
+    private fun sendPendingPayment(pendingPayment: PendingPayment): PaymentReceipt {
+        return apiClient.registerCollectorPayment(
+            token = requiredToken(),
+            loanId = pendingPayment.loanId,
+            amount = pendingPayment.amount,
+            paymentDate = pendingPayment.paymentDate,
+            paymentMethod = pendingPayment.paymentMethod,
+            mobileUuid = pendingPayment.mobileUuid,
+        )
+    }
+
     private fun requiredToken(): String {
-        return sessionStore.token() ?: error("No hay sesión activa.")
+        return sessionStore.token() ?: error("No hay sesion activa.")
     }
 }

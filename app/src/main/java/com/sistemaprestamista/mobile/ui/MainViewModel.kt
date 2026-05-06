@@ -4,6 +4,7 @@ import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.sistemaprestamista.mobile.data.PaymentRegistrationResult
 import com.sistemaprestamista.mobile.data.PrestamistaRepository
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.remote.ApiException
@@ -86,6 +87,7 @@ class MainViewModel(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
+                    repository.syncPendingPayments()
                     val dashboard = repository.dashboard()
                     val collectorWorkload = loadCollectorWorkloadIfAllowed(uiState.value.user?.permissions.orEmpty())
                     dashboard to collectorWorkload
@@ -100,6 +102,7 @@ class MainViewModel(
                         collectorLoans = collectorWorkload?.loans ?: it.collectorLoans,
                         collectorInstallments = collectorWorkload?.installments ?: it.collectorInstallments,
                         paymentHistory = collectorWorkload?.payments ?: it.paymentHistory,
+                        pendingPaymentCount = repository.pendingPaymentCount(),
                     )
                 }
             }.onFailure { throwable ->
@@ -123,30 +126,49 @@ class MainViewModel(
             _uiState.update { it.copy(isLoading = true, errorMessage = null, lastPaymentReceipt = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val receipt = repository.registerCollectorPayment(
+                    val result = repository.registerCollectorPayment(
                         loanId = loanId,
                         amount = amount,
                         paymentDate = LocalDate.now().toString(),
                         paymentMethod = paymentMethod,
                         mobileUuid = UUID.randomUUID().toString(),
                     )
-                    val dashboard = repository.dashboard()
-                    val collectorWorkload = loadCollectorWorkloadIfAllowed(uiState.value.user?.permissions.orEmpty())
-                    Triple(receipt, dashboard, collectorWorkload)
+                    when (result) {
+                        is PaymentRegistrationResult.Sent -> {
+                            val dashboard = repository.dashboard()
+                            val collectorWorkload = loadCollectorWorkloadIfAllowed(uiState.value.user?.permissions.orEmpty())
+                            PaymentRegistrationOutcome.Sent(result.receipt, dashboard, collectorWorkload)
+                        }
+                        is PaymentRegistrationResult.Queued -> PaymentRegistrationOutcome.Queued(result.pendingCount)
+                    }
                 }
-            }.onSuccess { (receipt, dashboard, collectorWorkload) ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        dashboard = dashboard,
-                        collectorSummary = collectorWorkload?.summary ?: it.collectorSummary,
-                        collectorClients = collectorWorkload?.clients ?: it.collectorClients,
-                        collectorLoans = collectorWorkload?.loans ?: it.collectorLoans,
-                        collectorInstallments = collectorWorkload?.installments ?: it.collectorInstallments,
-                        paymentHistory = collectorWorkload?.payments ?: it.paymentHistory,
-                        lastPaymentReceipt = receipt,
-                        selectedPaymentDetail = receipt,
-                    )
+            }.onSuccess { outcome ->
+                when (outcome) {
+                    is PaymentRegistrationOutcome.Sent -> {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                dashboard = outcome.dashboard,
+                                collectorSummary = outcome.collectorWorkload?.summary ?: it.collectorSummary,
+                                collectorClients = outcome.collectorWorkload?.clients ?: it.collectorClients,
+                                collectorLoans = outcome.collectorWorkload?.loans ?: it.collectorLoans,
+                                collectorInstallments = outcome.collectorWorkload?.installments ?: it.collectorInstallments,
+                                paymentHistory = outcome.collectorWorkload?.payments ?: it.paymentHistory,
+                                pendingPaymentCount = repository.pendingPaymentCount(),
+                                lastPaymentReceipt = outcome.receipt,
+                                selectedPaymentDetail = outcome.receipt,
+                            )
+                        }
+                    }
+                    is PaymentRegistrationOutcome.Queued -> {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                pendingPaymentCount = outcome.pendingCount,
+                                successMessage = "Cobro guardado sin conexion. Se sincronizara automaticamente.",
+                            )
+                        }
+                    }
                 }
             }.onFailure { throwable ->
                 _uiState.update { it.copy(isLoading = false, errorMessage = throwable.userMessage()) }
@@ -324,7 +346,9 @@ class MainViewModel(
         _uiState.value = AppUiState(
             isLoading = false,
             hasSavedSession = repository.hasSavedSession(),
+            pendingPaymentCount = repository.pendingPaymentCount(),
         )
+        repository.enqueuePendingPaymentSync()
     }
 
     private fun restoreSession() {
@@ -364,6 +388,7 @@ class MainViewModel(
         return AppUiState(
             isLoading = false,
             hasSavedSession = true,
+            pendingPaymentCount = repository.pendingPaymentCount(),
             user = user,
             dashboard = dashboard,
             collectorSummary = collectorWorkload?.summary,
@@ -424,4 +449,14 @@ class MainViewModel(
         val installments: List<com.sistemaprestamista.mobile.data.model.InstallmentSummary>,
         val payments: List<com.sistemaprestamista.mobile.data.model.PaymentReceipt>,
     )
+
+    private sealed interface PaymentRegistrationOutcome {
+        data class Sent(
+            val receipt: com.sistemaprestamista.mobile.data.model.PaymentReceipt,
+            val dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary,
+            val collectorWorkload: CollectorWorkload?,
+        ) : PaymentRegistrationOutcome
+
+        data class Queued(val pendingCount: Int) : PaymentRegistrationOutcome
+    }
 }

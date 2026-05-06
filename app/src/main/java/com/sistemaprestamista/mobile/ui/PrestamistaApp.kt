@@ -139,7 +139,11 @@ private fun AuthenticatedShell(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = state.user?.company?.name.orEmpty(),
+                            text = if (state.pendingPaymentCount > 0) {
+                                "${state.user?.company?.name.orEmpty()} · ${state.pendingPaymentCount} cobros pendientes"
+                            } else {
+                                state.user?.company?.name.orEmpty()
+                            },
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
