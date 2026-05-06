@@ -7,6 +7,7 @@ import com.sistemaprestamista.mobile.data.model.CollectorSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanSummary
+import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.data.model.UserProfile
 import com.sistemaprestamista.mobile.data.remote.PrestamistaApiClient
@@ -44,7 +45,9 @@ class PrestamistaRepository(
 
     fun collectorInstallments(): List<InstallmentSummary> = apiClient.collectorInstallments(requiredToken())
 
-    fun collectorPayments(): List<PaymentReceipt> = apiClient.collectorPayments(requiredToken())
+    fun collectorPayments(filters: PaymentHistoryFilters = PaymentHistoryFilters()): List<PaymentReceipt> {
+        return apiClient.collectorPayments(requiredToken(), filters)
+    }
 
     fun collectorPayment(paymentId: Long): PaymentReceipt = apiClient.collectorPayment(requiredToken(), paymentId)
 

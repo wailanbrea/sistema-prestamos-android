@@ -35,6 +35,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.printing.PrintSettingsStore
 import com.sistemaprestamista.mobile.ui.components.LoadingSplash
 import com.sistemaprestamista.mobile.ui.navigation.AppDestination
@@ -76,6 +77,7 @@ fun PrestamistaApp(
         onLoadClientDetail = viewModel::loadClientDetail,
         onLoadLoanDetail = viewModel::loadLoanDetail,
         onLoadPaymentDetail = viewModel::loadPaymentDetail,
+        onLoadPaymentHistory = viewModel::loadPaymentHistory,
         onRegisterPayment = viewModel::registerPayment,
         onLogout = viewModel::logout,
     )
@@ -91,6 +93,7 @@ private fun AuthenticatedShell(
     onLoadClientDetail: (Long) -> Unit,
     onLoadLoanDetail: (Long) -> Unit,
     onLoadPaymentDetail: (Long) -> Unit,
+    onLoadPaymentHistory: (PaymentHistoryFilters) -> Unit,
     onRegisterPayment: (Long, String) -> Unit,
     onLogout: () -> Unit,
 ) {
@@ -202,6 +205,20 @@ private fun AuthenticatedShell(
                         },
                     )
                 }
+                composable(AppDestination.Payments.route) {
+                    PaymentHistoryScreen(
+                        payments = state.paymentHistory,
+                        clients = state.collectorClients,
+                        loans = state.collectorLoans,
+                        filters = state.paymentHistoryFilters,
+                        isLoading = state.isPaymentHistoryLoading,
+                        onApplyFilters = onLoadPaymentHistory,
+                        onOpenReceipt = { paymentId ->
+                            onLoadPaymentDetail(paymentId)
+                            navController.navigate(AppRoutes.ReceiptDetail)
+                        },
+                    )
+                }
                 composable(AppDestination.Profile.route) {
                     ProfileScreen(
                         user = state.user,
@@ -283,7 +300,8 @@ private fun currentDestination(
     return destinations.firstOrNull { it.route == route }
         ?: when (route) {
             AppRoutes.ClientDetail -> AppDestination.Clients
-            AppRoutes.LoanDetail, AppRoutes.InstallmentDetail, AppRoutes.ReceiptDetail -> AppDestination.Collections
+            AppRoutes.LoanDetail, AppRoutes.InstallmentDetail -> AppDestination.Collections
+            AppRoutes.ReceiptDetail -> AppDestination.Payments
             else -> AppDestination.Home
         }
 }

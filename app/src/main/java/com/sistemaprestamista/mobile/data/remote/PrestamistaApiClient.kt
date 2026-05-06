@@ -15,6 +15,7 @@ import com.sistemaprestamista.mobile.data.model.LoanFinancialSummary
 import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.LoginResult
 import com.sistemaprestamista.mobile.data.model.PaymentDetailLine
+import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.data.model.UserProfile
 import okhttp3.MediaType.Companion.toMediaType
@@ -24,6 +25,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
 class PrestamistaApiClient {
@@ -129,8 +132,8 @@ class PrestamistaApiClient {
         return json.getJSONArray("data").mapObjects(::parseInstallment)
     }
 
-    fun collectorPayments(token: String): List<PaymentReceipt> {
-        val json = request(path = "collector/payments?per_page=25", method = "GET", token = token)
+    fun collectorPayments(token: String, filters: PaymentHistoryFilters = PaymentHistoryFilters()): List<PaymentReceipt> {
+        val json = request(path = "collector/payments?${filters.toQueryString()}", method = "GET", token = token)
         return json.getJSONArray("data").mapObjects(::parsePayment)
     }
 
@@ -374,6 +377,25 @@ class PrestamistaApiClient {
 
     private fun JSONObject.nullableString(name: String): String? {
         return if (isNull(name)) null else optString(name)
+    }
+
+    private fun PaymentHistoryFilters.toQueryString(): String {
+        val params = buildList {
+            add("per_page" to "100")
+            clientId?.let { add("client_id" to it.toString()) }
+            loanId?.let { add("loan_id" to it.toString()) }
+            status?.takeIf { it.isNotBlank() }?.let { add("status" to it) }
+            dateFrom?.takeIf { it.isNotBlank() }?.let { add("date_from" to it) }
+            dateTo?.takeIf { it.isNotBlank() }?.let { add("date_to" to it) }
+        }
+
+        return params.joinToString("&") { (key, value) ->
+            "${key.urlEncode()}=${value.urlEncode()}"
+        }
+    }
+
+    private fun String.urlEncode(): String {
+        return URLEncoder.encode(this, StandardCharsets.UTF_8.name())
     }
 
     private fun <T> JSONArray?.mapObjects(transform: (JSONObject) -> T): List<T> {

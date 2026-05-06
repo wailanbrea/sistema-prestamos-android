@@ -7,6 +7,7 @@ import com.sistemaprestamista.mobile.data.model.CollectorSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanSummary
+import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.data.model.UserProfile
 
@@ -19,6 +20,8 @@ data class AppUiState(
     val collectorLoans: List<LoanSummary> = emptyList(),
     val collectorInstallments: List<InstallmentSummary> = emptyList(),
     val paymentHistory: List<PaymentReceipt> = emptyList(),
+    val paymentHistoryFilters: PaymentHistoryFilters = PaymentHistoryFilters(),
+    val isPaymentHistoryLoading: Boolean = false,
     val selectedClientDetail: ClientDetail? = null,
     val selectedLoanDetail: LoanDetail? = null,
     val selectedPaymentDetail: PaymentReceipt? = null,

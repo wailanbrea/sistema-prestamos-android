@@ -1,9 +1,10 @@
-﻿package com.sistemaprestamista.mobile.ui
+package com.sistemaprestamista.mobile.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sistemaprestamista.mobile.data.PrestamistaRepository
+import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.remote.ApiException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -224,6 +225,36 @@ class MainViewModel(
                 }
             }.onFailure { throwable ->
                 _uiState.update { it.copy(isDetailLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun loadPaymentHistory(filters: PaymentHistoryFilters = uiState.value.paymentHistoryFilters) {
+        if (uiState.value.isPaymentHistoryLoading) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isPaymentHistoryLoading = true,
+                    paymentHistoryFilters = filters,
+                    errorMessage = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.collectorPayments(filters)
+                }
+            }.onSuccess { payments ->
+                _uiState.update {
+                    it.copy(
+                        isPaymentHistoryLoading = false,
+                        paymentHistory = payments,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isPaymentHistoryLoading = false, errorMessage = throwable.userMessage()) }
             }
         }
     }

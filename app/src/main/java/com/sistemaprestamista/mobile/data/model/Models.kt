@@ -180,3 +180,11 @@ data class PaymentReceipt(
     val status: String,
     val details: List<PaymentDetailLine> = emptyList(),
 )
+
+data class PaymentHistoryFilters(
+    val clientId: Long? = null,
+    val loanId: Long? = null,
+    val status: String? = null,
+    val dateFrom: String? = null,
+    val dateTo: String? = null,
+)
