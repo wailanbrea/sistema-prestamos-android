@@ -87,10 +87,14 @@ class MainViewModel(
         }
     }
 
-    fun registerPayment(loanId: Long, amountText: String) {
+    fun registerPayment(loanId: Long, amountText: String, paymentMethod: String) {
         val amount = amountText.toDoubleOrNull()
         if (amount == null || amount <= 0) {
             _uiState.update { it.copy(errorMessage = "El monto debe ser mayor que cero.") }
+            return
+        }
+        if (paymentMethod.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Selecciona un método de pago.") }
             return
         }
 
@@ -102,7 +106,7 @@ class MainViewModel(
                         loanId = loanId,
                         amount = amount,
                         paymentDate = LocalDate.now().toString(),
-                        paymentMethod = "cash",
+                        paymentMethod = paymentMethod,
                     )
                     val dashboard = repository.dashboard()
                     val collectorWorkload = loadCollectorWorkloadIfAllowed(uiState.value.user?.permissions.orEmpty())

@@ -188,3 +188,14 @@ data class PaymentHistoryFilters(
     val dateFrom: String? = null,
     val dateTo: String? = null,
 )
+
+enum class PaymentMethod(
+    val apiValue: String,
+    val label: String,
+) {
+    Cash("cash", "Efectivo"),
+    Transfer("transfer", "Transferencia"),
+    Card("card", "Tarjeta"),
+    Check("check", "Cheque"),
+    Other("other", "Otro"),
+}

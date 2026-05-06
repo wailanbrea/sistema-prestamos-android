@@ -94,7 +94,7 @@ private fun AuthenticatedShell(
     onLoadLoanDetail: (Long) -> Unit,
     onLoadPaymentDetail: (Long) -> Unit,
     onLoadPaymentHistory: (PaymentHistoryFilters) -> Unit,
-    onRegisterPayment: (Long, String) -> Unit,
+    onRegisterPayment: (Long, String, String) -> Unit,
     onLogout: () -> Unit,
 ) {
     val navController = rememberNavController()
