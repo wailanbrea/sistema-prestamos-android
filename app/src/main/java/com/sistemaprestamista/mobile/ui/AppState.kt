@@ -14,6 +14,7 @@ import com.sistemaprestamista.mobile.data.model.UserProfile
 
 data class AppUiState(
     val isLoading: Boolean = true,
+    val hasSavedSession: Boolean = false,
     val user: UserProfile? = null,
     val dashboard: DashboardSummary? = null,
     val collectorSummary: CollectorSummary? = null,
@@ -30,6 +31,7 @@ data class AppUiState(
     val isDetailLoading: Boolean = false,
     val lastPaymentReceipt: PaymentReceipt? = null,
     val errorMessage: String? = null,
+    val successMessage: String? = null,
 ) {
     val isAuthenticated: Boolean = user != null
     val isCollector: Boolean = user?.permissions?.contains("payments.create") == true

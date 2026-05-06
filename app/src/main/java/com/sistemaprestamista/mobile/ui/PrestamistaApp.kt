@@ -55,6 +55,12 @@ fun PrestamistaApp(
         viewModel.clearError()
     }
 
+    LaunchedEffect(state.successMessage) {
+        val message = state.successMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearSuccess()
+    }
+
     if (state.isLoading && !state.isAuthenticated) {
         LoadingSplash()
         return
@@ -63,8 +69,11 @@ fun PrestamistaApp(
     if (!state.isAuthenticated) {
         LoginScreen(
             isLoading = state.isLoading,
+            hasSavedSession = state.hasSavedSession,
             snackbarHostState = snackbarHostState,
             onLogin = viewModel::login,
+            onBiometricLogin = viewModel::unlockSavedSession,
+            onForgotPassword = viewModel::requestPasswordReset,
         )
         return
     }

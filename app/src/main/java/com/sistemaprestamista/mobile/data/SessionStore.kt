@@ -1,12 +1,17 @@
 package com.sistemaprestamista.mobile.data
 
 import android.content.Context
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 import com.sistemaprestamista.mobile.printing.ThermalPaper
 
 class SessionStore(context: Context) {
-    private val preferences = context.getSharedPreferences("session", Context.MODE_PRIVATE)
+    private val preferences = securePreferences(context.applicationContext)
 
     fun token(): String? = preferences.getString(KEY_TOKEN, null)
+
+    fun hasToken(): Boolean = !token().isNullOrBlank()
 
     fun saveToken(token: String) {
         preferences.edit().putString(KEY_TOKEN, token).apply()
@@ -49,7 +54,23 @@ class SessionStore(context: Context) {
         preferences.edit().remove(KEY_TOKEN).apply()
     }
 
+    private fun securePreferences(context: Context): SharedPreferences {
+        return runCatching {
+            val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+            EncryptedSharedPreferences.create(
+                PREFS_NAME,
+                masterKeyAlias,
+                context,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }.getOrElse {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        }
+    }
+
     private companion object {
+        const val PREFS_NAME = "secure_session"
         const val KEY_TOKEN = "access_token"
         const val KEY_PRINTER_ADDRESS = "printer_address"
         const val KEY_PRINTER_NAME = "printer_name"

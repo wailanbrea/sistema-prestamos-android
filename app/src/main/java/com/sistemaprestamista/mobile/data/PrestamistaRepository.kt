@@ -19,6 +19,8 @@ class PrestamistaRepository(
 ) {
     fun savedToken(): String? = sessionStore.token()
 
+    fun hasSavedSession(): Boolean = sessionStore.hasToken()
+
     fun login(email: String, password: String): UserProfile {
         val result = apiClient.login(
             email = email.trim(),
@@ -33,6 +35,8 @@ class PrestamistaRepository(
     fun me(): UserProfile = apiClient.me(requiredToken())
 
     fun dashboard(): DashboardSummary = apiClient.dashboard(requiredToken())
+
+    fun requestPasswordReset(email: String): String = apiClient.requestPasswordReset(email.trim())
 
     fun collectorSummary(): CollectorSummary = apiClient.collectorSummary(requiredToken())
 

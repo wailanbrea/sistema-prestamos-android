@@ -1,5 +1,6 @@
 package com.sistemaprestamista.mobile.ui
 
+import android.util.Patterns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -23,12 +24,14 @@ class MainViewModel(
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
 
     init {
-        restoreSession()
+        prepareSession()
     }
 
     fun login(email: String, password: String) {
-        if (email.isBlank() || password.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "Completa correo y contraseña.") }
+        val normalizedEmail = email.trim().lowercase()
+        val validationError = validateLogin(normalizedEmail, password)
+        if (validationError != null) {
+            _uiState.update { it.copy(errorMessage = validationError) }
             return
         }
 
@@ -36,27 +39,44 @@ class MainViewModel(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val user = repository.login(email, password)
+                    val user = repository.login(normalizedEmail, password)
                     val dashboard = repository.dashboard()
                     val collectorWorkload = loadCollectorWorkloadIfAllowed(user.permissions)
                     Triple(user, dashboard, collectorWorkload)
                 }
             }.onSuccess { (user, dashboard, collectorWorkload) ->
-                _uiState.value = AppUiState(
-                    isLoading = false,
-                    user = user,
-                    dashboard = dashboard,
-                    collectorSummary = collectorWorkload?.summary,
-                    collectorClients = collectorWorkload?.clients.orEmpty(),
-                    collectorLoans = collectorWorkload?.loans.orEmpty(),
-                    collectorInstallments = collectorWorkload?.installments.orEmpty(),
-                    paymentHistory = collectorWorkload?.payments.orEmpty(),
-                )
+                _uiState.value = authenticatedState(user, dashboard, collectorWorkload)
             }.onFailure { throwable ->
                 _uiState.value = AppUiState(
                     isLoading = false,
+                    hasSavedSession = repository.hasSavedSession(),
                     errorMessage = throwable.userMessage(),
                 )
+            }
+        }
+    }
+
+    fun unlockSavedSession() {
+        restoreSession()
+    }
+
+    fun requestPasswordReset(email: String) {
+        val normalizedEmail = email.trim().lowercase()
+        if (!isValidEmail(normalizedEmail)) {
+            _uiState.update { it.copy(errorMessage = "Escribe un correo valido para recuperar la contrasena.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.requestPasswordReset(normalizedEmail)
+                }
+            }.onSuccess { message ->
+                _uiState.update { it.copy(isLoading = false, successMessage = message) }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isLoading = false, errorMessage = throwable.userMessage()) }
             }
         }
     }
@@ -95,7 +115,7 @@ class MainViewModel(
             return
         }
         if (paymentMethod.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "Selecciona un método de pago.") }
+            _uiState.update { it.copy(errorMessage = "Selecciona un metodo de pago.") }
             return
         }
 
@@ -145,6 +165,10 @@ class MainViewModel(
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    fun clearSuccess() {
+        _uiState.update { it.copy(successMessage = null) }
     }
 
     fun loadClientDetail(clientId: Long) {
@@ -296,6 +320,13 @@ class MainViewModel(
         }
     }
 
+    private fun prepareSession() {
+        _uiState.value = AppUiState(
+            isLoading = false,
+            hasSavedSession = repository.hasSavedSession(),
+        )
+    }
+
     private fun restoreSession() {
         viewModelScope.launch {
             if (repository.savedToken() == null) {
@@ -303,6 +334,7 @@ class MainViewModel(
                 return@launch
             }
 
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
                     val user = repository.me()
@@ -311,23 +343,48 @@ class MainViewModel(
                     Triple(user, dashboard, collectorWorkload)
                 }
             }.onSuccess { (user, dashboard, collectorWorkload) ->
-                _uiState.value = AppUiState(
-                    isLoading = false,
-                    user = user,
-                    dashboard = dashboard,
-                    collectorSummary = collectorWorkload?.summary,
-                    collectorClients = collectorWorkload?.clients.orEmpty(),
-                    collectorLoans = collectorWorkload?.loans.orEmpty(),
-                    collectorInstallments = collectorWorkload?.installments.orEmpty(),
-                    paymentHistory = collectorWorkload?.payments.orEmpty(),
-                )
+                _uiState.value = authenticatedState(user, dashboard, collectorWorkload)
             }.onFailure {
                 withContext(Dispatchers.IO) {
                     repository.logout()
                 }
-                _uiState.value = AppUiState(isLoading = false)
+                _uiState.value = AppUiState(
+                    isLoading = false,
+                    errorMessage = "La sesion guardada expiro. Entra con correo y contrasena.",
+                )
             }
         }
+    }
+
+    private fun authenticatedState(
+        user: com.sistemaprestamista.mobile.data.model.UserProfile,
+        dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary,
+        collectorWorkload: CollectorWorkload?,
+    ): AppUiState {
+        return AppUiState(
+            isLoading = false,
+            hasSavedSession = true,
+            user = user,
+            dashboard = dashboard,
+            collectorSummary = collectorWorkload?.summary,
+            collectorClients = collectorWorkload?.clients.orEmpty(),
+            collectorLoans = collectorWorkload?.loans.orEmpty(),
+            collectorInstallments = collectorWorkload?.installments.orEmpty(),
+            paymentHistory = collectorWorkload?.payments.orEmpty(),
+        )
+    }
+
+    private fun validateLogin(email: String, password: String): String? {
+        return when {
+            !isValidEmail(email) -> "Escribe un correo valido."
+            password.isBlank() -> "Escribe tu contrasena."
+            password.length < 8 -> "La contrasena debe tener al menos 8 caracteres."
+            else -> null
+        }
+    }
+
+    private fun isValidEmail(email: String): Boolean {
+        return email.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches()
     }
 
     private fun loadCollectorWorkloadIfAllowed(permissions: List<String>): CollectorWorkload? {
@@ -368,4 +425,3 @@ class MainViewModel(
         val payments: List<com.sistemaprestamista.mobile.data.model.PaymentReceipt>,
     )
 }
-

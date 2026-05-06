@@ -55,6 +55,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.security.crypto)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
     testImplementation(libs.junit)
