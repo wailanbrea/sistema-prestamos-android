@@ -76,6 +76,7 @@ fun PrestamistaApp(
         onRefresh = viewModel::refreshDashboard,
         onLoadClientDetail = viewModel::loadClientDetail,
         onLoadLoanDetail = viewModel::loadLoanDetail,
+        onLoadInstallmentDetail = viewModel::loadInstallmentDetail,
         onLoadPaymentDetail = viewModel::loadPaymentDetail,
         onLoadPaymentHistory = viewModel::loadPaymentHistory,
         onRegisterPayment = viewModel::registerPayment,
@@ -92,6 +93,7 @@ private fun AuthenticatedShell(
     onRefresh: () -> Unit,
     onLoadClientDetail: (Long) -> Unit,
     onLoadLoanDetail: (Long) -> Unit,
+    onLoadInstallmentDetail: (Long) -> Unit,
     onLoadPaymentDetail: (Long) -> Unit,
     onLoadPaymentHistory: (PaymentHistoryFilters) -> Unit,
     onRegisterPayment: (Long, String, String) -> Unit,
@@ -263,8 +265,14 @@ private fun AuthenticatedShell(
                 }
                 composable(AppRoutes.InstallmentDetail) { backStackEntry ->
                     val installmentId = backStackEntry.arguments?.getString("installmentId")?.toLongOrNull()
+                    LaunchedEffect(installmentId) {
+                        if (installmentId != null) {
+                            onLoadInstallmentDetail(installmentId)
+                        }
+                    }
                     InstallmentDetailScreen(
-                        installment = state.collectorInstallments.firstOrNull { it.id == installmentId },
+                        detail = state.selectedInstallmentDetail?.takeIf { it.summary.id == installmentId },
+                        fallbackInstallment = state.collectorInstallments.firstOrNull { it.id == installmentId },
                         isLoading = state.isLoading,
                         onRegisterPayment = onRegisterPayment,
                     )

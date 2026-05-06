@@ -233,6 +233,37 @@ class MainViewModel(
         }
     }
 
+    fun loadInstallmentDetail(installmentId: Long) {
+        val current = uiState.value.selectedInstallmentDetail
+        if (current?.summary?.id == installmentId || uiState.value.isDetailLoading) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isDetailLoading = true,
+                    errorMessage = null,
+                    selectedInstallmentDetail = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.collectorInstallment(installmentId)
+                }
+            }.onSuccess { detail ->
+                _uiState.update {
+                    it.copy(
+                        isDetailLoading = false,
+                        selectedInstallmentDetail = detail,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isDetailLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
     fun loadPaymentHistory(filters: PaymentHistoryFilters = uiState.value.paymentHistoryFilters) {
         if (uiState.value.isPaymentHistoryLoading) {
             return

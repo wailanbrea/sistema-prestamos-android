@@ -153,6 +153,24 @@ data class InstallmentSummary(
         get() = (principalAmount + interestAmount + lateFee - totalPaid).coerceAtLeast(0.0)
 }
 
+data class InstallmentPaymentLine(
+    val id: Long,
+    val paymentId: Long,
+    val receiptNumber: String?,
+    val paymentDate: String?,
+    val paymentMethod: String?,
+    val paymentStatus: String?,
+    val principalPaid: Double,
+    val interestPaid: Double,
+    val lateFeePaid: Double,
+    val amountPaid: Double,
+)
+
+data class InstallmentDetail(
+    val summary: InstallmentSummary,
+    val payments: List<InstallmentPaymentLine>,
+)
+
 data class PaymentDetailLine(
     val id: Long,
     val installmentId: Long,

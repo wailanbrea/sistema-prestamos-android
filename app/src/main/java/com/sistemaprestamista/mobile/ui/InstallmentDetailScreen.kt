@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.sistemaprestamista.mobile.data.model.InstallmentDetail
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.PaymentMethod
 import com.sistemaprestamista.mobile.ui.components.EmptyCard
@@ -34,10 +35,12 @@ import java.util.Locale
 
 @Composable
 internal fun InstallmentDetailScreen(
-    installment: InstallmentSummary?,
+    detail: InstallmentDetail?,
+    fallbackInstallment: InstallmentSummary?,
     isLoading: Boolean,
     onRegisterPayment: (Long, String, String) -> Unit,
 ) {
+    val installment = detail?.summary ?: fallbackInstallment
     if (installment == null) {
         EmptyCard("No se encontró la cuota seleccionada.")
         return
@@ -110,6 +113,19 @@ internal fun InstallmentDetailScreen(
                     shape = RoundedCornerShape(14.dp),
                 ) {
                     Text("Registrar cobro")
+                }
+            }
+        }
+        if (detail?.payments?.isNotEmpty() == true) {
+            Card(shape = RoundedCornerShape(18.dp)) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("Pagos aplicados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    detail.payments.forEach { payment ->
+                        Text("${payment.paymentDate ?: "-"} · ${payment.receiptNumber ?: "-"} · ${currency.format(payment.amountPaid)}")
+                    }
                 }
             }
         }

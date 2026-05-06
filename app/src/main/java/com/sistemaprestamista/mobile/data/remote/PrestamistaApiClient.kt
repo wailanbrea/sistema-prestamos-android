@@ -10,6 +10,8 @@ import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
+import com.sistemaprestamista.mobile.data.model.InstallmentDetail
+import com.sistemaprestamista.mobile.data.model.InstallmentPaymentLine
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanFinancialSummary
 import com.sistemaprestamista.mobile.data.model.LoanSummary
@@ -130,6 +132,11 @@ class PrestamistaApiClient {
     fun collectorInstallments(token: String): List<InstallmentSummary> {
         val json = request(path = "collector/installments?per_page=100", method = "GET", token = token)
         return json.getJSONArray("data").mapObjects(::parseInstallment)
+    }
+
+    fun collectorInstallment(token: String, installmentId: Long): InstallmentDetail {
+        val json = request(path = "collector/installments/$installmentId", method = "GET", token = token)
+        return parseInstallmentDetail(json.getJSONObject("data"))
     }
 
     fun collectorPayments(token: String, filters: PaymentHistoryFilters = PaymentHistoryFilters()): List<PaymentReceipt> {
@@ -332,6 +339,26 @@ class PrestamistaApiClient {
             totalPaid = json.optDouble("total_paid", 0.0),
             daysLate = json.optInt("days_late", 0),
             status = json.optString("status"),
+        )
+    }
+
+    private fun parseInstallmentDetail(json: JSONObject): InstallmentDetail {
+        return InstallmentDetail(
+            summary = parseInstallment(json),
+            payments = json.optJSONArray("payments").mapObjects { payment ->
+                InstallmentPaymentLine(
+                    id = payment.getLong("id"),
+                    paymentId = payment.getLong("payment_id"),
+                    receiptNumber = payment.nullableString("receipt_number"),
+                    paymentDate = payment.nullableString("payment_date"),
+                    paymentMethod = payment.nullableString("payment_method"),
+                    paymentStatus = payment.nullableString("payment_status"),
+                    principalPaid = payment.optDouble("principal_paid", 0.0),
+                    interestPaid = payment.optDouble("interest_paid", 0.0),
+                    lateFeePaid = payment.optDouble("late_fee_paid", 0.0),
+                    amountPaid = payment.optDouble("amount_paid", 0.0),
+                )
+            },
         )
     }
 
