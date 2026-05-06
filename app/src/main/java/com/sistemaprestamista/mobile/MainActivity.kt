@@ -1,4 +1,4 @@
-﻿package com.sistemaprestamista.mobile
+package com.sistemaprestamista.mobile
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
