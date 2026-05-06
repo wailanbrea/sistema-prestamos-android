@@ -144,6 +144,22 @@ internal fun ReceiptDetailScreen(
                 Text("Estado: ${receipt.status}")
             }
         }
+        if (receipt.details.isNotEmpty()) {
+            Card(shape = RoundedCornerShape(18.dp)) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("Detalle por cuota", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    receipt.details.forEach { detail ->
+                        Text(
+                            text = "Cuota ${detail.installmentNumber ?: detail.installmentId}: ${currency.format(detail.amountPaid)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+        }
         FilledTonalButton(
             onClick = { A4ReceiptPrinter(context).printReceipt(receipt) },
             modifier = Modifier.fillMaxWidth(),

@@ -73,6 +73,9 @@ fun PrestamistaApp(
         snackbarHostState = snackbarHostState,
         printSettingsStore = printSettingsStore,
         onRefresh = viewModel::refreshDashboard,
+        onLoadClientDetail = viewModel::loadClientDetail,
+        onLoadLoanDetail = viewModel::loadLoanDetail,
+        onLoadPaymentDetail = viewModel::loadPaymentDetail,
         onRegisterPayment = viewModel::registerPayment,
         onLogout = viewModel::logout,
     )
@@ -85,6 +88,9 @@ private fun AuthenticatedShell(
     snackbarHostState: SnackbarHostState,
     printSettingsStore: PrintSettingsStore,
     onRefresh: () -> Unit,
+    onLoadClientDetail: (Long) -> Unit,
+    onLoadLoanDetail: (Long) -> Unit,
+    onLoadPaymentDetail: (Long) -> Unit,
     onRegisterPayment: (Long, String) -> Unit,
     onLogout: () -> Unit,
 ) {
@@ -205,10 +211,34 @@ private fun AuthenticatedShell(
                 }
                 composable(AppRoutes.ClientDetail) { backStackEntry ->
                     val clientId = backStackEntry.arguments?.getString("clientId")?.toLongOrNull()
+                    LaunchedEffect(clientId) {
+                        if (clientId != null) {
+                            onLoadClientDetail(clientId)
+                        }
+                    }
                     ClientDetailScreen(
-                        client = state.collectorClients.firstOrNull { it.id == clientId },
-                        loans = state.collectorLoans.filter { it.client?.id == clientId },
-                        installments = state.collectorInstallments.filter { it.client?.id == clientId },
+                        detail = state.selectedClientDetail?.takeIf { it.summary.id == clientId },
+                        isLoading = state.isDetailLoading,
+                        fallbackClient = state.collectorClients.firstOrNull { it.id == clientId },
+                        onOpenLoan = { loanId ->
+                            navController.navigate(AppRoutes.loanDetail(loanId))
+                        },
+                        onOpenInstallment = { installmentId ->
+                            navController.navigate(AppRoutes.installmentDetail(installmentId))
+                        },
+                    )
+                }
+                composable(AppRoutes.LoanDetail) { backStackEntry ->
+                    val loanId = backStackEntry.arguments?.getString("loanId")?.toLongOrNull()
+                    LaunchedEffect(loanId) {
+                        if (loanId != null) {
+                            onLoadLoanDetail(loanId)
+                        }
+                    }
+                    LoanDetailScreen(
+                        detail = state.selectedLoanDetail?.takeIf { it.summary.id == loanId },
+                        isLoading = state.isDetailLoading,
+                        fallbackLoan = state.collectorLoans.firstOrNull { it.id == loanId },
                         onOpenInstallment = { installmentId ->
                             navController.navigate(AppRoutes.installmentDetail(installmentId))
                         },
@@ -223,8 +253,14 @@ private fun AuthenticatedShell(
                     )
                 }
                 composable(AppRoutes.ReceiptDetail) {
+                    LaunchedEffect(state.lastPaymentReceipt?.id) {
+                        val paymentId = state.lastPaymentReceipt?.id
+                        if (paymentId != null) {
+                            onLoadPaymentDetail(paymentId)
+                        }
+                    }
                     ReceiptDetailScreen(
-                        receipt = state.lastPaymentReceipt,
+                        receipt = state.selectedPaymentDetail ?: state.lastPaymentReceipt,
                         printSettingsStore = printSettingsStore,
                     )
                 }
@@ -247,7 +283,7 @@ private fun currentDestination(
     return destinations.firstOrNull { it.route == route }
         ?: when (route) {
             AppRoutes.ClientDetail -> AppDestination.Clients
-            AppRoutes.InstallmentDetail, AppRoutes.ReceiptDetail -> AppDestination.Collections
+            AppRoutes.LoanDetail, AppRoutes.InstallmentDetail, AppRoutes.ReceiptDetail -> AppDestination.Collections
             else -> AppDestination.Home
         }
 }
@@ -255,6 +291,7 @@ private fun currentDestination(
 private fun currentTitle(route: String?, fallback: AppDestination): String {
     return when (route) {
         AppRoutes.ClientDetail -> "Detalle cliente"
+        AppRoutes.LoanDetail -> "Detalle préstamo"
         AppRoutes.InstallmentDetail -> "Detalle cuota"
         AppRoutes.ReceiptDetail -> "Recibo"
         AppRoutes.PrintSettings -> "Impresora"

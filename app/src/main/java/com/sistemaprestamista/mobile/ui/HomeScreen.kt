@@ -97,6 +97,7 @@ internal fun HomeScreen(
         }
         item { CollectorOverview(state) }
         item { LastReceiptCard(state, onOpenReceipt) }
+        item { PaymentHistoryPreview(state.paymentHistory) }
     }
 }
 
@@ -125,6 +126,30 @@ private fun WelcomeCard(state: AppUiState) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
+        }
+    }
+}
+
+@Composable
+private fun PaymentHistoryPreview(payments: List<PaymentReceipt>) {
+    if (payments.isEmpty()) {
+        return
+    }
+
+    val currency = rememberCurrency()
+
+    Card(shape = RoundedCornerShape(18.dp)) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Historial reciente", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            payments.take(5).forEach { payment ->
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(payment.client?.fullName ?: "Cliente no disponible", fontWeight = FontWeight.SemiBold)
+                    Text("${payment.paymentDate ?: "-"} · ${payment.receiptNumber} · ${currency.format(payment.amount)}")
+                }
+            }
         }
     }
 }

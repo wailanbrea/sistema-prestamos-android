@@ -52,6 +52,46 @@ data class ClientSummary(
     val riskLevel: String,
 )
 
+data class ClientReference(
+    val id: Long,
+    val name: String,
+    val phone: String,
+    val relationship: String?,
+    val address: String?,
+)
+
+data class ClientRouteSummary(
+    val id: Long,
+    val name: String,
+)
+
+data class ClientFinancialSummary(
+    val activeLoans: Int,
+    val lateLoans: Int,
+    val totalPrincipal: Double,
+    val remainingBalance: Double,
+    val pendingInstallments: Int,
+    val lateInstallments: Int,
+    val totalPaid: Double,
+    val lastPaymentDate: String?,
+)
+
+data class ClientDetail(
+    val summary: ClientSummary,
+    val secondaryPhone: String?,
+    val email: String?,
+    val workplace: String?,
+    val workplacePhone: String?,
+    val monthlyIncome: Double,
+    val notes: String?,
+    val references: List<ClientReference>,
+    val routes: List<ClientRouteSummary>,
+    val financialSummary: ClientFinancialSummary,
+    val loans: List<LoanSummary>,
+    val pendingInstallments: List<InstallmentSummary>,
+    val recentPayments: List<PaymentReceipt>,
+)
+
 data class LoanSummary(
     val id: Long,
     val loanNumber: String,
@@ -62,6 +102,36 @@ data class LoanSummary(
     val remainingBalance: Double,
     val paymentFrequency: String,
     val status: String,
+)
+
+data class LoanFinancialSummary(
+    val installmentsTotal: Int,
+    val installmentsPending: Int,
+    val installmentsLate: Int,
+    val paymentsTotal: Int,
+    val amountPaid: Double,
+)
+
+data class LoanDetail(
+    val summary: LoanSummary,
+    val interestRate: Double,
+    val interestType: String,
+    val calculationMethod: String,
+    val termQuantity: Int,
+    val totalInterest: Double,
+    val paidPrincipal: Double,
+    val paidInterest: Double,
+    val paidLateFee: Double,
+    val startDate: String?,
+    val firstPaymentDate: String?,
+    val endDate: String?,
+    val lateFeeType: String,
+    val lateFeeValue: Double,
+    val guaranteeDescription: String?,
+    val notes: String?,
+    val financialSummary: LoanFinancialSummary,
+    val installments: List<InstallmentSummary>,
+    val payments: List<PaymentReceipt>,
 )
 
 data class InstallmentSummary(
@@ -83,6 +153,16 @@ data class InstallmentSummary(
         get() = (principalAmount + interestAmount + lateFee - totalPaid).coerceAtLeast(0.0)
 }
 
+data class PaymentDetailLine(
+    val id: Long,
+    val installmentId: Long,
+    val installmentNumber: Int?,
+    val principalPaid: Double,
+    val interestPaid: Double,
+    val lateFeePaid: Double,
+    val amountPaid: Double,
+)
+
 data class PaymentReceipt(
     val id: Long,
     val receiptNumber: String,
@@ -98,4 +178,5 @@ data class PaymentReceipt(
     val newBalance: Double,
     val paymentMethod: String,
     val status: String,
+    val details: List<PaymentDetailLine> = emptyList(),
 )

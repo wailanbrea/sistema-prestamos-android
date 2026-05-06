@@ -1,4 +1,4 @@
-package com.sistemaprestamista.mobile.ui
+﻿package com.sistemaprestamista.mobile.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -48,6 +48,7 @@ class MainViewModel(
                     collectorClients = collectorWorkload?.clients.orEmpty(),
                     collectorLoans = collectorWorkload?.loans.orEmpty(),
                     collectorInstallments = collectorWorkload?.installments.orEmpty(),
+                    paymentHistory = collectorWorkload?.payments.orEmpty(),
                 )
             }.onFailure { throwable ->
                 _uiState.value = AppUiState(
@@ -76,6 +77,7 @@ class MainViewModel(
                         collectorClients = collectorWorkload?.clients ?: it.collectorClients,
                         collectorLoans = collectorWorkload?.loans ?: it.collectorLoans,
                         collectorInstallments = collectorWorkload?.installments ?: it.collectorInstallments,
+                        paymentHistory = collectorWorkload?.payments ?: it.paymentHistory,
                     )
                 }
             }.onFailure { throwable ->
@@ -114,7 +116,9 @@ class MainViewModel(
                         collectorClients = collectorWorkload?.clients ?: it.collectorClients,
                         collectorLoans = collectorWorkload?.loans ?: it.collectorLoans,
                         collectorInstallments = collectorWorkload?.installments ?: it.collectorInstallments,
+                        paymentHistory = collectorWorkload?.payments ?: it.paymentHistory,
                         lastPaymentReceipt = receipt,
+                        selectedPaymentDetail = receipt,
                     )
                 }
             }.onFailure { throwable ->
@@ -134,6 +138,94 @@ class MainViewModel(
 
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    fun loadClientDetail(clientId: Long) {
+        val current = uiState.value.selectedClientDetail
+        if (current?.summary?.id == clientId || uiState.value.isDetailLoading) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isDetailLoading = true,
+                    errorMessage = null,
+                    selectedClientDetail = null,
+                    selectedLoanDetail = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.collectorClient(clientId)
+                }
+            }.onSuccess { detail ->
+                _uiState.update {
+                    it.copy(
+                        isDetailLoading = false,
+                        selectedClientDetail = detail,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isDetailLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun loadLoanDetail(loanId: Long) {
+        val current = uiState.value.selectedLoanDetail
+        if (current?.summary?.id == loanId || uiState.value.isDetailLoading) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isDetailLoading = true,
+                    errorMessage = null,
+                    selectedLoanDetail = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.collectorLoan(loanId)
+                }
+            }.onSuccess { detail ->
+                _uiState.update {
+                    it.copy(
+                        isDetailLoading = false,
+                        selectedLoanDetail = detail,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isDetailLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun loadPaymentDetail(paymentId: Long) {
+        val current = uiState.value.selectedPaymentDetail
+        if (current?.id == paymentId || uiState.value.isDetailLoading) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDetailLoading = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.collectorPayment(paymentId)
+                }
+            }.onSuccess { payment ->
+                _uiState.update {
+                    it.copy(
+                        isDetailLoading = false,
+                        selectedPaymentDetail = payment,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isDetailLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
     }
 
     private fun restoreSession() {
@@ -159,6 +251,7 @@ class MainViewModel(
                     collectorClients = collectorWorkload?.clients.orEmpty(),
                     collectorLoans = collectorWorkload?.loans.orEmpty(),
                     collectorInstallments = collectorWorkload?.installments.orEmpty(),
+                    paymentHistory = collectorWorkload?.payments.orEmpty(),
                 )
             }.onFailure {
                 withContext(Dispatchers.IO) {
@@ -179,6 +272,7 @@ class MainViewModel(
             clients = repository.collectorClients(),
             loans = repository.collectorLoans(),
             installments = repository.collectorInstallments(),
+            payments = repository.collectorPayments(),
         )
     }
 
@@ -203,5 +297,7 @@ class MainViewModel(
         val clients: List<com.sistemaprestamista.mobile.data.model.ClientSummary>,
         val loans: List<com.sistemaprestamista.mobile.data.model.LoanSummary>,
         val installments: List<com.sistemaprestamista.mobile.data.model.InstallmentSummary>,
+        val payments: List<com.sistemaprestamista.mobile.data.model.PaymentReceipt>,
     )
 }
+

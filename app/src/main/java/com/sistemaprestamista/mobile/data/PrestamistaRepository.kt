@@ -1,9 +1,11 @@
 package com.sistemaprestamista.mobile.data
 
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
+import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
+import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.data.model.UserProfile
@@ -34,9 +36,17 @@ class PrestamistaRepository(
 
     fun collectorClients(): List<ClientSummary> = apiClient.collectorClients(requiredToken())
 
+    fun collectorClient(clientId: Long): ClientDetail = apiClient.collectorClient(requiredToken(), clientId)
+
     fun collectorLoans(): List<LoanSummary> = apiClient.collectorLoans(requiredToken())
 
+    fun collectorLoan(loanId: Long): LoanDetail = apiClient.collectorLoan(requiredToken(), loanId)
+
     fun collectorInstallments(): List<InstallmentSummary> = apiClient.collectorInstallments(requiredToken())
+
+    fun collectorPayments(): List<PaymentReceipt> = apiClient.collectorPayments(requiredToken())
+
+    fun collectorPayment(paymentId: Long): PaymentReceipt = apiClient.collectorPayment(requiredToken(), paymentId)
 
     fun registerCollectorPayment(
         loanId: Long,

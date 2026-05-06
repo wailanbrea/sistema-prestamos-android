@@ -2,12 +2,19 @@ package com.sistemaprestamista.mobile.data.remote
 
 import com.sistemaprestamista.mobile.BuildConfig
 import com.sistemaprestamista.mobile.data.model.Company
+import com.sistemaprestamista.mobile.data.model.ClientDetail
+import com.sistemaprestamista.mobile.data.model.ClientFinancialSummary
+import com.sistemaprestamista.mobile.data.model.ClientReference
+import com.sistemaprestamista.mobile.data.model.ClientRouteSummary
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
+import com.sistemaprestamista.mobile.data.model.LoanDetail
+import com.sistemaprestamista.mobile.data.model.LoanFinancialSummary
 import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.LoginResult
+import com.sistemaprestamista.mobile.data.model.PaymentDetailLine
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.data.model.UserProfile
 import okhttp3.MediaType.Companion.toMediaType
@@ -102,14 +109,34 @@ class PrestamistaApiClient {
         return json.getJSONArray("data").mapObjects(::parseClient)
     }
 
+    fun collectorClient(token: String, clientId: Long): ClientDetail {
+        val json = request(path = "collector/clients/$clientId", method = "GET", token = token)
+        return parseClientDetail(json.getJSONObject("data"))
+    }
+
     fun collectorLoans(token: String): List<LoanSummary> {
         val json = request(path = "collector/loans?per_page=100", method = "GET", token = token)
         return json.getJSONArray("data").mapObjects(::parseLoan)
     }
 
+    fun collectorLoan(token: String, loanId: Long): LoanDetail {
+        val json = request(path = "collector/loans/$loanId", method = "GET", token = token)
+        return parseLoanDetail(json.getJSONObject("data"))
+    }
+
     fun collectorInstallments(token: String): List<InstallmentSummary> {
         val json = request(path = "collector/installments?per_page=100", method = "GET", token = token)
         return json.getJSONArray("data").mapObjects(::parseInstallment)
+    }
+
+    fun collectorPayments(token: String): List<PaymentReceipt> {
+        val json = request(path = "collector/payments?per_page=25", method = "GET", token = token)
+        return json.getJSONArray("data").mapObjects(::parsePayment)
+    }
+
+    fun collectorPayment(token: String, paymentId: Long): PaymentReceipt {
+        val json = request(path = "collector/payments/$paymentId", method = "GET", token = token)
+        return parsePayment(json.getJSONObject("data"))
     }
 
     fun registerCollectorPayment(
@@ -199,6 +226,48 @@ class PrestamistaApiClient {
         )
     }
 
+    private fun parseClientDetail(json: JSONObject): ClientDetail {
+        val financial = json.getJSONObject("summary")
+
+        return ClientDetail(
+            summary = parseClient(json),
+            secondaryPhone = json.nullableString("secondary_phone"),
+            email = json.nullableString("email"),
+            workplace = json.nullableString("workplace"),
+            workplacePhone = json.nullableString("workplace_phone"),
+            monthlyIncome = json.optDouble("monthly_income", 0.0),
+            notes = json.nullableString("notes"),
+            references = json.optJSONArray("references").mapObjects { reference ->
+                ClientReference(
+                    id = reference.getLong("id"),
+                    name = reference.getString("name"),
+                    phone = reference.getString("phone"),
+                    relationship = reference.nullableString("relationship"),
+                    address = reference.nullableString("address"),
+                )
+            },
+            routes = json.optJSONArray("routes").mapObjects { route ->
+                ClientRouteSummary(
+                    id = route.getLong("id"),
+                    name = route.getString("name"),
+                )
+            },
+            financialSummary = ClientFinancialSummary(
+                activeLoans = financial.optInt("active_loans", 0),
+                lateLoans = financial.optInt("late_loans", 0),
+                totalPrincipal = financial.optDouble("total_principal", 0.0),
+                remainingBalance = financial.optDouble("remaining_balance", 0.0),
+                pendingInstallments = financial.optInt("pending_installments", 0),
+                lateInstallments = financial.optInt("late_installments", 0),
+                totalPaid = financial.optDouble("total_paid", 0.0),
+                lastPaymentDate = financial.nullableString("last_payment_date"),
+            ),
+            loans = json.optJSONArray("loans").mapObjects(::parseLoan),
+            pendingInstallments = json.optJSONArray("pending_installments").mapObjects(::parseInstallment),
+            recentPayments = json.optJSONArray("recent_payments").mapObjects(::parsePayment),
+        )
+    }
+
     private fun parseLoan(json: JSONObject): LoanSummary {
         return LoanSummary(
             id = json.getLong("id"),
@@ -210,6 +279,38 @@ class PrestamistaApiClient {
             remainingBalance = json.optDouble("remaining_balance", 0.0),
             paymentFrequency = json.optString("payment_frequency"),
             status = json.optString("status"),
+        )
+    }
+
+    private fun parseLoanDetail(json: JSONObject): LoanDetail {
+        val financial = json.getJSONObject("summary")
+
+        return LoanDetail(
+            summary = parseLoan(json),
+            interestRate = json.optDouble("interest_rate", 0.0),
+            interestType = json.optString("interest_type"),
+            calculationMethod = json.optString("calculation_method"),
+            termQuantity = json.optInt("term_quantity", 0),
+            totalInterest = json.optDouble("total_interest", 0.0),
+            paidPrincipal = json.optDouble("paid_principal", 0.0),
+            paidInterest = json.optDouble("paid_interest", 0.0),
+            paidLateFee = json.optDouble("paid_late_fee", 0.0),
+            startDate = json.nullableString("start_date"),
+            firstPaymentDate = json.nullableString("first_payment_date"),
+            endDate = json.nullableString("end_date"),
+            lateFeeType = json.optString("late_fee_type"),
+            lateFeeValue = json.optDouble("late_fee_value", 0.0),
+            guaranteeDescription = json.nullableString("guarantee_description"),
+            notes = json.nullableString("notes"),
+            financialSummary = LoanFinancialSummary(
+                installmentsTotal = financial.optInt("installments_total", 0),
+                installmentsPending = financial.optInt("installments_pending", 0),
+                installmentsLate = financial.optInt("installments_late", 0),
+                paymentsTotal = financial.optInt("payments_total", 0),
+                amountPaid = financial.optDouble("amount_paid", 0.0),
+            ),
+            installments = json.optJSONArray("installments").mapObjects(::parseInstallment),
+            payments = json.optJSONArray("payments").mapObjects(::parsePayment),
         )
     }
 
@@ -247,6 +348,17 @@ class PrestamistaApiClient {
             newBalance = json.optDouble("new_balance", 0.0),
             paymentMethod = json.optString("payment_method"),
             status = json.optString("status"),
+            details = json.optJSONArray("details").mapObjects { detail ->
+                PaymentDetailLine(
+                    id = detail.getLong("id"),
+                    installmentId = detail.getLong("installment_id"),
+                    installmentNumber = if (detail.isNull("installment_number")) null else detail.optInt("installment_number"),
+                    principalPaid = detail.optDouble("principal_paid", 0.0),
+                    interestPaid = detail.optDouble("interest_paid", 0.0),
+                    lateFeePaid = detail.optDouble("late_fee_paid", 0.0),
+                    amountPaid = detail.optDouble("amount_paid", 0.0),
+                )
+            },
         )
     }
 
@@ -264,7 +376,9 @@ class PrestamistaApiClient {
         return if (isNull(name)) null else optString(name)
     }
 
-    private fun <T> JSONArray.mapObjects(transform: (JSONObject) -> T): List<T> {
+    private fun <T> JSONArray?.mapObjects(transform: (JSONObject) -> T): List<T> {
+        if (this == null) return emptyList()
+
         return buildList {
             for (index in 0 until length()) {
                 add(transform(getJSONObject(index)))

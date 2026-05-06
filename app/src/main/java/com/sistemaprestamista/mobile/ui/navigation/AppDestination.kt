@@ -20,11 +20,14 @@ enum class AppDestination(
 
 object AppRoutes {
     const val ClientDetail = "clients/{clientId}"
+    const val LoanDetail = "loans/{loanId}"
     const val InstallmentDetail = "installments/{installmentId}"
     const val ReceiptDetail = "receipt"
     const val PrintSettings = "settings/printer"
 
     fun clientDetail(clientId: Long): String = "clients/$clientId"
+
+    fun loanDetail(loanId: Long): String = "loans/$loanId"
 
     fun installmentDetail(installmentId: Long): String = "installments/$installmentId"
 }
