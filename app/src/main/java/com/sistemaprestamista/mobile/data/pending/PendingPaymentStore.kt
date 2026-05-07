@@ -79,6 +79,29 @@ class PendingPaymentStore(context: Context) : SQLiteOpenHelper(
         }
     }
 
+    fun allPending(): List<PendingPayment> {
+        readableDatabase.rawQuery(
+            """
+            select * from pending_payments
+            where status in (?, ?)
+            order by
+                case status when ? then 0 else 1 end,
+                updated_at desc
+            """.trimIndent(),
+            arrayOf(
+                PendingPaymentStatus.Failed.storageValue,
+                PendingPaymentStatus.Pending.storageValue,
+                PendingPaymentStatus.Failed.storageValue,
+            ),
+        ).use { cursor ->
+            return buildList {
+                while (cursor.moveToNext()) {
+                    add(cursor.toPendingPayment())
+                }
+            }
+        }
+    }
+
     fun pendingForSync(limit: Int = 25): List<PendingPayment> {
         readableDatabase.rawQuery(
             """
@@ -104,6 +127,16 @@ class PendingPaymentStore(context: Context) : SQLiteOpenHelper(
         val values = ContentValues().apply {
             put("status", PendingPaymentStatus.Failed.storageValue)
             put("last_error", message.take(240))
+            put("updated_at", System.currentTimeMillis())
+        }
+
+        writableDatabase.update("pending_payments", values, "mobile_uuid = ?", arrayOf(mobileUuid))
+    }
+
+    fun markPending(mobileUuid: String) {
+        val values = ContentValues().apply {
+            put("status", PendingPaymentStatus.Pending.storageValue)
+            putNull("last_error")
             put("updated_at", System.currentTimeMillis())
         }
 

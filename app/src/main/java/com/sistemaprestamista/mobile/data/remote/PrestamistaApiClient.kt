@@ -107,6 +107,28 @@ class PrestamistaApiClient {
         return json.optString("message", "Si el correo existe, enviaremos las instrucciones.")
     }
 
+    fun resetPassword(
+        email: String,
+        token: String,
+        password: String,
+        passwordConfirmation: String,
+    ): String {
+        val payload = JSONObject()
+            .put("email", email)
+            .put("token", token)
+            .put("password", password)
+            .put("password_confirmation", passwordConfirmation)
+
+        val json = request(
+            path = "auth/reset-password",
+            method = "POST",
+            token = null,
+            body = payload,
+        )
+
+        return json.optString("message", "Contrasena restablecida correctamente.")
+    }
+
     fun collectorSummary(token: String): CollectorSummary {
         val json = request(path = "collector/summary", method = "GET", token = token)
         val data = json.getJSONObject("data")

@@ -31,6 +31,8 @@ class PrestamistaRepository(
 
     fun pendingPaymentCount(): Int = pendingPaymentStore.pendingCount()
 
+    fun pendingPayments(): List<PendingPayment> = pendingPaymentStore.allPending()
+
     fun login(email: String, password: String): UserProfile {
         val result = apiClient.login(
             email = email.trim(),
@@ -48,6 +50,18 @@ class PrestamistaRepository(
     fun dashboard(): DashboardSummary = apiClient.dashboard(requiredToken())
 
     fun requestPasswordReset(email: String): String = apiClient.requestPasswordReset(email.trim())
+
+    fun resetPassword(
+        email: String,
+        token: String,
+        password: String,
+        passwordConfirmation: String,
+    ): String = apiClient.resetPassword(
+        email = email.trim(),
+        token = token.trim(),
+        password = password,
+        passwordConfirmation = passwordConfirmation,
+    )
 
     fun collectorSummary(): CollectorSummary = apiClient.collectorSummary(requiredToken())
 
@@ -151,6 +165,15 @@ class PrestamistaRepository(
             remaining = pendingPaymentStore.pendingCount(),
             requiresRetry = requiresRetry,
         )
+    }
+
+    fun retryPendingPayment(mobileUuid: String): PendingPaymentSyncResult {
+        pendingPaymentStore.markPending(mobileUuid)
+        return syncPendingPayments()
+    }
+
+    fun discardPendingPayment(mobileUuid: String) {
+        pendingPaymentStore.delete(mobileUuid)
     }
 
     fun enqueuePendingPaymentSync() {

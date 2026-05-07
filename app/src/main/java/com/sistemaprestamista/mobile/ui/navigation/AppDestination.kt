@@ -26,6 +26,7 @@ object AppRoutes {
     const val InstallmentDetail = "installments/{installmentId}"
     const val ReceiptDetail = "receipt"
     const val PrintSettings = "settings/printer"
+    const val PendingPayments = "payments/pending"
 
     fun clientDetail(clientId: Long): String = "clients/$clientId"
 

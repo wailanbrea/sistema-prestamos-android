@@ -82,6 +82,33 @@ class MainViewModel(
         }
     }
 
+    fun resetPassword(email: String, token: String, password: String, passwordConfirmation: String) {
+        val normalizedEmail = email.trim().lowercase()
+        val validationError = validatePasswordReset(normalizedEmail, token, password, passwordConfirmation)
+        if (validationError != null) {
+            _uiState.update { it.copy(errorMessage = validationError) }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null, successMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.resetPassword(
+                        email = normalizedEmail,
+                        token = token,
+                        password = password,
+                        passwordConfirmation = passwordConfirmation,
+                    )
+                }
+            }.onSuccess { message ->
+                _uiState.update { it.copy(isLoading = false, successMessage = message) }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
     fun refreshDashboard() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
@@ -103,6 +130,7 @@ class MainViewModel(
                         collectorInstallments = collectorWorkload?.installments ?: it.collectorInstallments,
                         paymentHistory = collectorWorkload?.payments ?: it.paymentHistory,
                         pendingPaymentCount = repository.pendingPaymentCount(),
+                        pendingPayments = repository.pendingPayments(),
                     )
                 }
             }.onFailure { throwable ->
@@ -342,11 +370,94 @@ class MainViewModel(
         }
     }
 
+    fun loadPendingPayments() {
+        _uiState.update {
+            it.copy(
+                pendingPayments = repository.pendingPayments(),
+                pendingPaymentCount = repository.pendingPaymentCount(),
+            )
+        }
+    }
+
+    fun retryPendingPayment(mobileUuid: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isPendingSyncLoading = true, errorMessage = null, successMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.retryPendingPayment(mobileUuid)
+                }
+            }.onSuccess { result ->
+                _uiState.update {
+                    it.copy(
+                        isPendingSyncLoading = false,
+                        pendingPayments = repository.pendingPayments(),
+                        pendingPaymentCount = result.remaining,
+                        successMessage = syncResultMessage(result),
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isPendingSyncLoading = false,
+                        pendingPayments = repository.pendingPayments(),
+                        pendingPaymentCount = repository.pendingPaymentCount(),
+                        errorMessage = throwable.userMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun syncPendingPaymentsNow() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isPendingSyncLoading = true, errorMessage = null, successMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.syncPendingPayments()
+                }
+            }.onSuccess { result ->
+                _uiState.update {
+                    it.copy(
+                        isPendingSyncLoading = false,
+                        pendingPayments = repository.pendingPayments(),
+                        pendingPaymentCount = result.remaining,
+                        successMessage = syncResultMessage(result),
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isPendingSyncLoading = false,
+                        pendingPayments = repository.pendingPayments(),
+                        pendingPaymentCount = repository.pendingPaymentCount(),
+                        errorMessage = throwable.userMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun discardPendingPayment(mobileUuid: String) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                repository.discardPendingPayment(mobileUuid)
+            }
+            _uiState.update {
+                it.copy(
+                    pendingPayments = repository.pendingPayments(),
+                    pendingPaymentCount = repository.pendingPaymentCount(),
+                    successMessage = "Cobro pendiente descartado.",
+                )
+            }
+        }
+    }
+
     private fun prepareSession() {
         _uiState.value = AppUiState(
             isLoading = false,
             hasSavedSession = repository.hasSavedSession(),
             pendingPaymentCount = repository.pendingPaymentCount(),
+            pendingPayments = repository.pendingPayments(),
         )
         repository.enqueuePendingPaymentSync()
     }
@@ -389,6 +500,7 @@ class MainViewModel(
             isLoading = false,
             hasSavedSession = true,
             pendingPaymentCount = repository.pendingPaymentCount(),
+            pendingPayments = repository.pendingPayments(),
             user = user,
             dashboard = dashboard,
             collectorSummary = collectorWorkload?.summary,
@@ -405,6 +517,32 @@ class MainViewModel(
             password.isBlank() -> "Escribe tu contrasena."
             password.length < 8 -> "La contrasena debe tener al menos 8 caracteres."
             else -> null
+        }
+    }
+
+    private fun validatePasswordReset(
+        email: String,
+        token: String,
+        password: String,
+        passwordConfirmation: String,
+    ): String? {
+        return when {
+            !isValidEmail(email) -> "Escribe un correo valido."
+            token.isBlank() -> "Pega el token de recuperacion."
+            password.length < 10 -> "La nueva contrasena debe tener al menos 10 caracteres."
+            password != passwordConfirmation -> "Las contrasenas no coinciden."
+            else -> null
+        }
+    }
+
+    private fun syncResultMessage(result: com.sistemaprestamista.mobile.data.PendingPaymentSyncResult): String {
+        return when {
+            result.sent > 0 && result.failed == 0 && result.remaining == 0 -> "Cobros pendientes sincronizados."
+            result.sent > 0 && result.failed > 0 -> "Se sincronizaron ${result.sent}; ${result.failed} requieren revision."
+            result.failed > 0 -> "${result.failed} cobros requieren revision."
+            result.requiresRetry -> "No hay conexion estable. Se reintentara automaticamente."
+            result.remaining > 0 -> "Quedan ${result.remaining} cobros pendientes."
+            else -> "No hay cobros pendientes."
         }
     }
 

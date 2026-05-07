@@ -1,30 +1,69 @@
 package com.sistemaprestamista.mobile.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.EventRepeat
+import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.Percent
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanSummary
-import com.sistemaprestamista.mobile.ui.components.EmptyCard
-import com.sistemaprestamista.mobile.ui.components.MetricCard
-import com.sistemaprestamista.mobile.ui.components.StatusPill
+import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
+
+private val ScreenBackground = Color(0xFFF4F7FB)
+private val CardBackground = Color(0xFFFFFFFF)
+private val Primary = Color(0xFF00386C)
+private val PrimaryContainer = Color(0xFF1A4F8B)
+private val Secondary = Color(0xFF505F76)
+private val SecondaryContainer = Color(0xFFD0E1FB)
+private val SurfaceContainerLow = Color(0xFFF3F3F9)
+private val SurfaceContainerHigh = Color(0xFFE8E8ED)
+private val TextMain = Color(0xFF1A1C20)
+private val TextVariant = Color(0xFF424750)
+private val Outline = Color(0xFF737781)
+private val OutlineVariant = Color(0xFFC2C6D1)
+private val Error = Color(0xFFBA1A1A)
+private val ErrorContainer = Color(0xFFFFDAD6)
+private val Success = Color(0xFF008A5C)
+private val SuccessSoft = Color(0xFFE7F5ED)
+private val Orange = Color(0xFFEA580C)
 
 @Composable
 internal fun LoanDetailScreen(
@@ -34,8 +73,14 @@ internal fun LoanDetailScreen(
     onOpenInstallment: (Long) -> Unit,
 ) {
     val loan = detail?.summary ?: fallbackLoan
+
+    if (isLoading && detail == null && loan == null) {
+        LoanLoadingState()
+        return
+    }
+
     if (loan == null) {
-        EmptyCard("No se encontró el préstamo seleccionado.")
+        LoanNotFoundState()
         return
     }
 
@@ -44,72 +89,213 @@ internal fun LoanDetailScreen(
     val payments = detail?.payments.orEmpty()
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ScreenBackground),
+        contentPadding = PaddingValues(
+            start = 20.dp,
+            end = 20.dp,
+            top = 20.dp,
+            bottom = 28.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         item {
-            Card(shape = RoundedCornerShape(18.dp)) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(loan.loanNumber, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(loan.client?.fullName ?: "Cliente no disponible")
-                    StatusPill("${loan.paymentFrequency} · ${loan.status}")
-                    detail?.let {
-                        Text("${it.calculationMethod} · ${it.interestType} · ${it.interestRate}%")
-                        Text("Inicio ${it.startDate ?: "-"} · primera cuota ${it.firstPaymentDate ?: "-"}")
-                    }
-                }
-            }
+            LoanHeaderCard(
+                loan = loan,
+                detail = detail,
+            )
         }
+
         if (isLoading && detail == null) {
-            item { EmptyCard("Cargando detalle del préstamo...") }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Capital", currency.format(loan.principalAmount), Modifier.weight(1f))
-                MetricCard("Balance", currency.format(loan.remainingBalance), Modifier.weight(1f))
-            }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Cuota", currency.format(loan.installmentAmount), Modifier.weight(1f), compact = true)
-                MetricCard("Total", currency.format(loan.totalAmount), Modifier.weight(1f), compact = true)
-            }
-        }
-        detail?.let {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MetricCard("Pagado", currency.format(it.financialSummary.amountPaid), Modifier.weight(1f), compact = true)
-                    MetricCard("Atrasos", it.financialSummary.installmentsLate.toString(), Modifier.weight(1f), compact = true)
-                }
+                LoadingDetailCard()
             }
         }
+
         item {
-            Text("Cuotas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            LoanFinancialSummaryGrid(
+                capital = currency.format(loan.principalAmount),
+                balance = currency.format(loan.remainingBalance),
+                installment = currency.format(loan.installmentAmount),
+                paid = currency.format(detail?.financialSummary?.amountPaid ?: 0.0),
+                total = currency.format(loan.totalAmount),
+                late = (detail?.financialSummary?.installmentsLate ?: 0).toString(),
+            )
         }
+
+        item {
+            SectionHeader(
+                title = "Cuotas",
+                action = if (installments.isNotEmpty()) "Ver calendario" else null,
+            )
+        }
+
         if (installments.isEmpty()) {
-            item { EmptyCard("Aún no hay cuotas cargadas para este préstamo.") }
+            item {
+                EmptySectionCard("Aún no hay cuotas cargadas para este préstamo.")
+            }
         } else {
             items(installments, key = { it.id }) { installment ->
-                LoanInstallmentRow(installment, onOpenInstallment)
+                LoanInstallmentCard(
+                    installment = installment,
+                    pendingAmount = currency.format(installment.pendingAmount),
+                    onOpenInstallment = onOpenInstallment,
+                )
             }
         }
+
         if (payments.isNotEmpty()) {
             item {
-                Text("Pagos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                SectionHeader(title = "Pagos relacionados")
             }
-            items(payments, key = { it.id }) { payment ->
-                Card(shape = RoundedCornerShape(18.dp)) {
+
+            item {
+                LoanPaymentsCard(
+                    payments = payments,
+                    formatAmount = { currency.format(it) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoanHeaderCard(
+    loan: LoanSummary,
+    detail: LoanDetail?,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
+        colors = CardDefaults.cardColors(containerColor = PrimaryContainer),
+    ) {
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(130.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.06f)),
+            )
+
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text(payment.receiptNumber, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("${payment.paymentDate ?: "-"} · ${currency.format(payment.amount)}")
-                        StatusPill(payment.status)
+                        Text(
+                            text = "PRÉSTAMO NO.",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.72f),
+                        )
+
+                        Text(
+                            text = "#${loan.loanNumber}",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                        )
+                    }
+
+                    LoanStatusBadge(
+                        text = loan.status,
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color.White.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Person,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = loan.client?.fullName ?: "Cliente no disponible",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                        )
+
+                        Text(
+                            text = "Cliente verificado",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.70f),
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Color.White.copy(alpha = 0.12f)),
+                )
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        LoanHeaderInfoItem(
+                            icon = Icons.Outlined.Payments,
+                            label = "Frecuencia",
+                            value = loan.paymentFrequency,
+                            modifier = Modifier.weight(1f),
+                        )
+
+                        LoanHeaderInfoItem(
+                            icon = Icons.Outlined.Percent,
+                            label = "Tasa de interés",
+                            value = detail?.let { "${it.interestRate}%" } ?: "-",
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        LoanHeaderInfoItem(
+                            icon = Icons.Outlined.CalendarToday,
+                            label = "Inicio",
+                            value = detail?.startDate ?: "-",
+                            modifier = Modifier.weight(1f),
+                        )
+
+                        LoanHeaderInfoItem(
+                            icon = Icons.Outlined.EventRepeat,
+                            label = "Primer pago",
+                            value = detail?.firstPaymentDate ?: "-",
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
             }
@@ -118,27 +304,639 @@ internal fun LoanDetailScreen(
 }
 
 @Composable
-private fun LoanInstallmentRow(
-    installment: InstallmentSummary,
-    onOpenInstallment: (Long) -> Unit,
+private fun LoanHeaderInfoItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
 ) {
-    val currency = rememberCurrency()
-
-    Card(shape = RoundedCornerShape(18.dp)) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp),
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text("Cuota ${installment.installmentNumber}", fontWeight = FontWeight.SemiBold)
-            Text("Vence ${installment.dueDate ?: "-"} · pendiente ${currency.format(installment.pendingAmount)}")
-            StatusPill(if (installment.daysLate > 0) "${installment.daysLate} días atraso" else installment.status)
-            OutlinedButton(
-                onClick = { onOpenInstallment(installment.id) },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.70f),
+                modifier = Modifier.size(16.dp),
+            )
+
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.70f),
+            )
+        }
+
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun LoanStatusBadge(
+    text: String,
+) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.14f))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text.lowercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun LoanFinancialSummaryGrid(
+    capital: String,
+    balance: String,
+    installment: String,
+    paid: String,
+    total: String,
+    late: String,
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            LoanMetricCard(
+                title = "Capital",
+                value = capital,
+                valueColor = Primary,
+                accentColor = Primary,
+                modifier = Modifier.weight(1f),
+            )
+
+            LoanMetricCard(
+                title = "Balance",
+                value = balance,
+                valueColor = Error,
+                accentColor = Error,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            LoanMetricCard(
+                title = "Cuota",
+                value = installment,
+                valueColor = PrimaryContainer,
+                accentColor = null,
+                modifier = Modifier.weight(1f),
+            )
+
+            LoanMetricCard(
+                title = "Pagado",
+                value = paid,
+                valueColor = Success,
+                accentColor = null,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("Ver cuota")
+                Column {
+                    Text(
+                        text = "Total del préstamo",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Secondary,
+                    )
+
+                    Text(
+                        text = total,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Secondary,
+                    )
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.End,
+                ) {
+                    Text(
+                        text = "Atrasos",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Error,
+                    )
+
+                    Text(
+                        text = late,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Error,
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun LoanMetricCard(
+    title: String,
+    value: String,
+    valueColor: Color,
+    accentColor: Color?,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.height(104.dp),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            if (accentColor != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(0.05f)
+                        .background(accentColor),
+                )
+
+                Column(
+                    modifier = Modifier
+                        .weight(0.95f)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    MetricText(title = title, value = value, valueColor = valueColor)
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    MetricText(title = title, value = value, valueColor = valueColor)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricText(
+    title: String,
+    value: String,
+    valueColor: Color,
+) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelSmall,
+        color = Secondary,
+    )
+
+    Spacer(Modifier.height(4.dp))
+
+    Text(
+        text = value,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = valueColor,
+        maxLines = 1,
+    )
+}
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    action: String? = null,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = TextMain,
+        )
+
+        if (action != null) {
+            Text(
+                text = action,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = Primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoanInstallmentCard(
+    installment: InstallmentSummary,
+    pendingAmount: String,
+    onOpenInstallment: (Long) -> Unit,
+) {
+    val isLate = installment.daysLate > 0
+    val installmentNumber = installment.installmentNumber ?: 0
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(if (isLate) ErrorContainer else SurfaceContainerHigh),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = installmentNumber.toString().padStart(2, '0'),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isLate) Error else Primary,
+                    )
+                }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = installment.dueDate ?: "-",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMain,
+                    )
+
+                    Text(
+                        text = if (isLate) {
+                            "Vencida hace ${installment.daysLate} días"
+                        } else {
+                            "$pendingAmount pendiente"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isLate) Error else Secondary,
+                    )
+                }
+            }
+
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                InstallmentStatusBadge(
+                    text = if (isLate) "atrasado" else installment.status,
+                    isLate = isLate,
+                )
+
+                OutlinedButton(
+                    onClick = { onOpenInstallment(installment.id) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Primary,
+                    ),
+                    border = null,
+                ) {
+                    Text(
+                        text = "Ver cuota",
+                        fontWeight = FontWeight.Bold,
+                    )
+
+                    Spacer(Modifier.width(4.dp))
+
+                    Icon(
+                        imageVector = Icons.Outlined.ChevronRight,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InstallmentStatusBadge(
+    text: String,
+    isLate: Boolean,
+) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(if (isLate) ErrorContainer else SecondaryContainer)
+            .padding(horizontal = 9.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = if (isLate) Error else Secondary,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun LoanPaymentsCard(
+    payments: List<PaymentReceipt>,
+    formatAmount: (Double) -> String,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            payments.forEachIndexed { index, payment ->
+                LoanPaymentRow(
+                    payment = payment,
+                    amount = formatAmount(payment.amount),
+                    showDivider = index < payments.lastIndex,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoanPaymentRow(
+    payment: PaymentReceipt,
+    amount: String,
+    showDivider: Boolean,
+) {
+    val isCancelled = payment.status.equals("cancelled", ignoreCase = true) ||
+            payment.status.equals("anulado", ignoreCase = true)
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(if (isCancelled) SurfaceContainerHigh else SuccessSoft),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ReceiptLong,
+                        contentDescription = null,
+                        tint = if (isCancelled) Secondary else Success,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = "Recibo #${payment.receiptNumber}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMain,
+                    )
+
+                    Text(
+                        text = payment.paymentDate ?: "-",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Secondary,
+                    )
+                }
+            }
+
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = amount,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isCancelled) Secondary else Primary,
+                )
+
+                Text(
+                    text = payment.status.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isCancelled) Error else Success,
+                    maxLines = 1,
+                )
+            }
+        }
+
+        if (showDivider) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(SurfaceContainerLow),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoadingDetailCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            CircularProgressIndicator(
+                color = Primary,
+            )
+
+            Text(
+                text = "Cargando detalle del préstamo...",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = Secondary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoanLoadingState() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ScreenBackground)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                CircularProgressIndicator(color = Primary)
+
+                Text(
+                    text = "Cargando préstamo...",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextMain,
+                )
+
+                Text(
+                    text = "Estamos obteniendo los datos del préstamo.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoanNotFoundState() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ScreenBackground)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceContainerHigh),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.SearchOff,
+                        contentDescription = null,
+                        tint = Outline,
+                        modifier = Modifier.size(38.dp),
+                    )
+                }
+
+                Text(
+                    text = "Préstamo no encontrado",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = TextMain,
+                )
+
+                Text(
+                    text = "No se encontró el préstamo seleccionado.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptySectionCard(
+    message: String,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        border = CardDefaults.outlinedCardBorder(),
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.padding(20.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextVariant,
+        )
     }
 }
