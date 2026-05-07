@@ -4,10 +4,12 @@ import com.sistemaprestamista.mobile.data.model.DashboardSummary
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
+import com.sistemaprestamista.mobile.data.model.CollectorRoute
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentDetail
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanSummary
+import com.sistemaprestamista.mobile.data.model.MapClient
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.data.model.UserProfile
@@ -26,6 +28,9 @@ data class AppUiState(
     val collectorLoans: List<LoanSummary> = emptyList(),
     val collectorInstallments: List<InstallmentSummary> = emptyList(),
     val paymentHistory: List<PaymentReceipt> = emptyList(),
+    val mapClients: List<MapClient> = emptyList(),
+    val collectorRoutes: List<CollectorRoute> = emptyList(),
+    val isMapLoading: Boolean = false,
     val paymentHistoryFilters: PaymentHistoryFilters = PaymentHistoryFilters(),
     val isPaymentHistoryLoading: Boolean = false,
     val selectedClientDetail: ClientDetail? = null,

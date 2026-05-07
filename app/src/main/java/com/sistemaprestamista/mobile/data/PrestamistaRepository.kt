@@ -4,11 +4,13 @@ import android.content.Context
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
+import com.sistemaprestamista.mobile.data.model.CollectorRoute
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentDetail
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanSummary
+import com.sistemaprestamista.mobile.data.model.MapClient
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.data.model.UserProfile
@@ -68,6 +70,10 @@ class PrestamistaRepository(
     fun collectorClients(): List<ClientSummary> = apiClient.collectorClients(requiredToken())
 
     fun collectorClient(clientId: Long): ClientDetail = apiClient.collectorClient(requiredToken(), clientId)
+
+    fun collectorMapClients(): List<MapClient> = apiClient.collectorMapClients(requiredToken())
+
+    fun collectorRoutes(): List<CollectorRoute> = apiClient.collectorRoutes(requiredToken())
 
     fun collectorLoans(): List<LoanSummary> = apiClient.collectorLoans(requiredToken())
 

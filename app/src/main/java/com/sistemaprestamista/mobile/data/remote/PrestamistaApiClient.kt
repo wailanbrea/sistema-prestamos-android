@@ -5,9 +5,11 @@ import com.sistemaprestamista.mobile.data.model.Company
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientFinancialSummary
 import com.sistemaprestamista.mobile.data.model.ClientReference
+import com.sistemaprestamista.mobile.data.model.ClientRouteMapSummary
 import com.sistemaprestamista.mobile.data.model.ClientRouteSummary
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
+import com.sistemaprestamista.mobile.data.model.CollectorRoute
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentDetail
@@ -16,9 +18,11 @@ import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanFinancialSummary
 import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.LoginResult
+import com.sistemaprestamista.mobile.data.model.MapClient
 import com.sistemaprestamista.mobile.data.model.PaymentDetailLine
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
+import com.sistemaprestamista.mobile.data.model.RouteClientStop
 import com.sistemaprestamista.mobile.data.model.UserProfile
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -150,6 +154,16 @@ class PrestamistaApiClient {
         return json.getJSONArray("data").mapObjects(::parseClient)
     }
 
+    fun collectorMapClients(token: String): List<MapClient> {
+        val json = request(path = "collector/map-clients", method = "GET", token = token)
+        return json.getJSONArray("data").mapObjects(::parseMapClient)
+    }
+
+    fun collectorRoutes(token: String): List<CollectorRoute> {
+        val json = request(path = "collector/routes", method = "GET", token = token)
+        return json.getJSONArray("data").mapObjects(::parseRoute)
+    }
+
     fun collectorClient(token: String, clientId: Long): ClientDetail {
         val json = request(path = "collector/clients/$clientId", method = "GET", token = token)
         return parseClientDetail(json.getJSONObject("data"))
@@ -269,8 +283,44 @@ class PrestamistaApiClient {
             identification = json.nullableString("identification"),
             phone = json.nullableString("phone"),
             address = json.nullableString("address"),
+            latitude = json.nullableDouble("latitude"),
+            longitude = json.nullableDouble("longitude"),
+            locationReference = json.nullableString("location_reference"),
             status = json.optString("status"),
             riskLevel = json.optString("risk_level"),
+        )
+    }
+
+    private fun parseMapClient(json: JSONObject): MapClient {
+        return MapClient(
+            summary = parseClient(json),
+            financialSummary = parseFinancialSummary(json.getJSONObject("summary")),
+            routes = json.optJSONArray("routes").mapObjects { route ->
+                ClientRouteMapSummary(
+                    id = route.getLong("id"),
+                    name = route.getString("name"),
+                    orderNumber = route.optInt("order_number"),
+                )
+            },
+        )
+    }
+
+    private fun parseRoute(json: JSONObject): CollectorRoute {
+        val zone = json.optJSONObject("zone")
+
+        return CollectorRoute(
+            id = json.getLong("id"),
+            name = json.getString("name"),
+            description = json.nullableString("description"),
+            zoneName = zone?.nullableString("name"),
+            clientsCount = json.optInt("clients_count", 0),
+            clients = json.optJSONArray("clients").mapObjects { client ->
+                RouteClientStop(
+                    summary = parseClient(client),
+                    orderNumber = client.optInt("order_number"),
+                    financialSummary = parseFinancialSummary(client.getJSONObject("summary")),
+                )
+            },
         )
     }
 
@@ -300,16 +350,7 @@ class PrestamistaApiClient {
                     name = route.getString("name"),
                 )
             },
-            financialSummary = ClientFinancialSummary(
-                activeLoans = financial.optInt("active_loans", 0),
-                lateLoans = financial.optInt("late_loans", 0),
-                totalPrincipal = financial.optDouble("total_principal", 0.0),
-                remainingBalance = financial.optDouble("remaining_balance", 0.0),
-                pendingInstallments = financial.optInt("pending_installments", 0),
-                lateInstallments = financial.optInt("late_installments", 0),
-                totalPaid = financial.optDouble("total_paid", 0.0),
-                lastPaymentDate = financial.nullableString("last_payment_date"),
-            ),
+            financialSummary = parseFinancialSummary(financial),
             loans = json.optJSONArray("loans").mapObjects(::parseLoan),
             pendingInstallments = json.optJSONArray("pending_installments").mapObjects(::parseInstallment),
             recentPayments = json.optJSONArray("recent_payments").mapObjects(::parsePayment),
@@ -430,6 +471,19 @@ class PrestamistaApiClient {
         )
     }
 
+    private fun parseFinancialSummary(json: JSONObject): ClientFinancialSummary {
+        return ClientFinancialSummary(
+            activeLoans = json.optInt("active_loans", 0),
+            lateLoans = json.optInt("late_loans", 0),
+            totalPrincipal = json.optDouble("total_principal", 0.0),
+            remainingBalance = json.optDouble("remaining_balance", 0.0),
+            pendingInstallments = json.optInt("pending_installments", 0),
+            lateInstallments = json.optInt("late_installments", 0),
+            totalPaid = json.optDouble("total_paid", 0.0),
+            lastPaymentDate = json.nullableString("last_payment_date"),
+        )
+    }
+
     private fun JSONArray?.toStringList(): List<String> {
         if (this == null) return emptyList()
 
@@ -442,6 +496,10 @@ class PrestamistaApiClient {
 
     private fun JSONObject.nullableString(name: String): String? {
         return if (isNull(name)) null else optString(name)
+    }
+
+    private fun JSONObject.nullableDouble(name: String): Double? {
+        return if (isNull(name)) null else optDouble(name)
     }
 
     private fun PaymentHistoryFilters.toQueryString(): String {

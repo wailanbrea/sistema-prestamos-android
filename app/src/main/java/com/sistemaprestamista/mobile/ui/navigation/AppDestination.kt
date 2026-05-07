@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.ui.graphics.vector.ImageVector
 
@@ -16,6 +17,7 @@ enum class AppDestination(
     Home("home", "Inicio", Icons.Outlined.Home),
     Collections("collections", "Cobros", Icons.AutoMirrored.Outlined.ReceiptLong),
     Clients("clients", "Clientes", Icons.Outlined.Groups),
+    Map("map", "Mapa", Icons.Outlined.Map),
     Payments("payments", "Historial", Icons.Outlined.History),
     Profile("profile", "Perfil", Icons.Outlined.Person),
 }

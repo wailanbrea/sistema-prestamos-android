@@ -1,9 +1,14 @@
 package com.sistemaprestamista.mobile
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Build
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.sistemaprestamista.mobile.ui.MainViewModel
 import com.sistemaprestamista.mobile.ui.PrestamistaApp
@@ -18,6 +23,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        requestNotificationPermissionIfNeeded()
         setContent {
             SistemaPrestamistaAndroidTheme {
                 PrestamistaApp(
@@ -26,5 +32,22 @@ class MainActivity : FragmentActivity() {
                 )
             }
         }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                REQUEST_NOTIFICATIONS,
+            )
+        }
+    }
+
+    private companion object {
+        const val REQUEST_NOTIFICATIONS = 3010
     }
 }

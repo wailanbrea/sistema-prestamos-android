@@ -112,6 +112,7 @@ fun PrestamistaApp(
         onLoadInstallmentDetail = viewModel::loadInstallmentDetail,
         onLoadPaymentDetail = viewModel::loadPaymentDetail,
         onLoadPaymentHistory = viewModel::loadPaymentHistory,
+        onLoadMapData = viewModel::loadMapData,
         onRegisterPayment = viewModel::registerPayment,
         onLoadPendingPayments = viewModel::loadPendingPayments,
         onRetryPendingPayment = viewModel::retryPendingPayment,
@@ -133,6 +134,7 @@ private fun AuthenticatedShell(
     onLoadInstallmentDetail: (Long) -> Unit,
     onLoadPaymentDetail: (Long) -> Unit,
     onLoadPaymentHistory: (PaymentHistoryFilters) -> Unit,
+    onLoadMapData: () -> Unit,
     onRegisterPayment: (Long, String, String) -> Unit,
     onLoadPendingPayments: () -> Unit,
     onRetryPendingPayment: (String) -> Unit,
@@ -239,6 +241,18 @@ private fun AuthenticatedShell(
                 composable(AppDestination.Clients.route) {
                     ClientsScreen(
                         clients = state.collectorClients,
+                        onOpenClient = { clientId ->
+                            navController.navigate(AppRoutes.clientDetail(clientId))
+                        },
+                    )
+                }
+
+                composable(AppDestination.Map.route) {
+                    MapScreen(
+                        clients = state.mapClients,
+                        routes = state.collectorRoutes,
+                        isLoading = state.isMapLoading,
+                        onRefresh = onLoadMapData,
                         onOpenClient = { clientId ->
                             navController.navigate(AppRoutes.clientDetail(clientId))
                         },

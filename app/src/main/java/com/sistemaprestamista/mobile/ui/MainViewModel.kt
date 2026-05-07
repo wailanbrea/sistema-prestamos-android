@@ -129,6 +129,8 @@ class MainViewModel(
                         collectorLoans = collectorWorkload?.loans ?: it.collectorLoans,
                         collectorInstallments = collectorWorkload?.installments ?: it.collectorInstallments,
                         paymentHistory = collectorWorkload?.payments ?: it.paymentHistory,
+                        mapClients = collectorWorkload?.mapClients ?: it.mapClients,
+                        collectorRoutes = collectorWorkload?.routes ?: it.collectorRoutes,
                         pendingPaymentCount = repository.pendingPaymentCount(),
                         pendingPayments = repository.pendingPayments(),
                     )
@@ -182,6 +184,8 @@ class MainViewModel(
                                 collectorLoans = outcome.collectorWorkload?.loans ?: it.collectorLoans,
                                 collectorInstallments = outcome.collectorWorkload?.installments ?: it.collectorInstallments,
                                 paymentHistory = outcome.collectorWorkload?.payments ?: it.paymentHistory,
+                                mapClients = outcome.collectorWorkload?.mapClients ?: it.mapClients,
+                                collectorRoutes = outcome.collectorWorkload?.routes ?: it.collectorRoutes,
                                 pendingPaymentCount = repository.pendingPaymentCount(),
                                 lastPaymentReceipt = outcome.receipt,
                                 selectedPaymentDetail = outcome.receipt,
@@ -370,6 +374,31 @@ class MainViewModel(
         }
     }
 
+    fun loadMapData() {
+        if (uiState.value.isMapLoading) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isMapLoading = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.collectorMapClients() to repository.collectorRoutes()
+                }
+            }.onSuccess { (clients, routes) ->
+                _uiState.update {
+                    it.copy(
+                        isMapLoading = false,
+                        mapClients = clients,
+                        collectorRoutes = routes,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isMapLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
     fun loadPendingPayments() {
         _uiState.update {
             it.copy(
@@ -508,6 +537,8 @@ class MainViewModel(
             collectorLoans = collectorWorkload?.loans.orEmpty(),
             collectorInstallments = collectorWorkload?.installments.orEmpty(),
             paymentHistory = collectorWorkload?.payments.orEmpty(),
+            mapClients = collectorWorkload?.mapClients.orEmpty(),
+            collectorRoutes = collectorWorkload?.routes.orEmpty(),
         )
     }
 
@@ -561,6 +592,8 @@ class MainViewModel(
             loans = repository.collectorLoans(),
             installments = repository.collectorInstallments(),
             payments = repository.collectorPayments(),
+            mapClients = repository.collectorMapClients(),
+            routes = repository.collectorRoutes(),
         )
     }
 
@@ -586,6 +619,8 @@ class MainViewModel(
         val loans: List<com.sistemaprestamista.mobile.data.model.LoanSummary>,
         val installments: List<com.sistemaprestamista.mobile.data.model.InstallmentSummary>,
         val payments: List<com.sistemaprestamista.mobile.data.model.PaymentReceipt>,
+        val mapClients: List<com.sistemaprestamista.mobile.data.model.MapClient>,
+        val routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
     )
 
     private sealed interface PaymentRegistrationOutcome {

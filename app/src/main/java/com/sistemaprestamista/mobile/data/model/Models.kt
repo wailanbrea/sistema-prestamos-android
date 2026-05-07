@@ -48,6 +48,9 @@ data class ClientSummary(
     val identification: String?,
     val phone: String?,
     val address: String?,
+    val latitude: Double?,
+    val longitude: Double?,
+    val locationReference: String?,
     val status: String,
     val riskLevel: String,
 )
@@ -74,6 +77,36 @@ data class ClientFinancialSummary(
     val lateInstallments: Int,
     val totalPaid: Double,
     val lastPaymentDate: String?,
+)
+
+data class MapClient(
+    val summary: ClientSummary,
+    val financialSummary: ClientFinancialSummary,
+    val routes: List<ClientRouteMapSummary>,
+) {
+    val hasCoordinates: Boolean
+        get() = summary.latitude != null && summary.longitude != null
+}
+
+data class ClientRouteMapSummary(
+    val id: Long,
+    val name: String,
+    val orderNumber: Int,
+)
+
+data class CollectorRoute(
+    val id: Long,
+    val name: String,
+    val description: String?,
+    val zoneName: String?,
+    val clientsCount: Int,
+    val clients: List<RouteClientStop>,
+)
+
+data class RouteClientStop(
+    val summary: ClientSummary,
+    val orderNumber: Int,
+    val financialSummary: ClientFinancialSummary,
 )
 
 data class ClientDetail(
