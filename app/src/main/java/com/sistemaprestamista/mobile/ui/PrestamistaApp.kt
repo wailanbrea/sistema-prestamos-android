@@ -113,6 +113,7 @@ fun PrestamistaApp(
         onLoadPaymentDetail = viewModel::loadPaymentDetail,
         onLoadPaymentHistory = viewModel::loadPaymentHistory,
         onLoadMapData = viewModel::loadMapData,
+        onSelectMapRoute = viewModel::selectMapRoute,
         onRegisterPayment = viewModel::registerPayment,
         onLoadPendingPayments = viewModel::loadPendingPayments,
         onRetryPendingPayment = viewModel::retryPendingPayment,
@@ -135,6 +136,7 @@ private fun AuthenticatedShell(
     onLoadPaymentDetail: (Long) -> Unit,
     onLoadPaymentHistory: (PaymentHistoryFilters) -> Unit,
     onLoadMapData: () -> Unit,
+    onSelectMapRoute: (Long) -> Unit,
     onRegisterPayment: (Long, String, String) -> Unit,
     onLoadPendingPayments: () -> Unit,
     onRetryPendingPayment: (String) -> Unit,
@@ -251,8 +253,12 @@ private fun AuthenticatedShell(
                     MapScreen(
                         clients = state.mapClients,
                         routes = state.collectorRoutes,
+                        selectedRouteId = state.selectedMapRouteId,
+                        realRoutePoints = state.realRoutePoints,
+                        routeWarning = state.routeWarning,
                         isLoading = state.isMapLoading,
                         onRefresh = onLoadMapData,
+                        onSelectRoute = onSelectMapRoute,
                         onOpenClient = { clientId ->
                             navController.navigate(AppRoutes.clientDetail(clientId))
                         },

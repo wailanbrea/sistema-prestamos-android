@@ -13,10 +13,12 @@ import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.MapClient
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
+import com.sistemaprestamista.mobile.data.model.RoutePoint
 import com.sistemaprestamista.mobile.data.model.UserProfile
 import com.sistemaprestamista.mobile.data.pending.PendingPayment
 import com.sistemaprestamista.mobile.data.pending.PendingPaymentStore
 import com.sistemaprestamista.mobile.data.remote.ApiException
+import com.sistemaprestamista.mobile.data.remote.GoogleRoutesClient
 import com.sistemaprestamista.mobile.data.remote.PrestamistaApiClient
 import com.sistemaprestamista.mobile.sync.PendingPaymentSyncScheduler
 import java.io.IOException
@@ -24,6 +26,7 @@ import java.io.IOException
 class PrestamistaRepository(
     private val context: Context,
     private val apiClient: PrestamistaApiClient,
+    private val googleRoutesClient: GoogleRoutesClient,
     private val sessionStore: SessionStore,
     private val pendingPaymentStore: PendingPaymentStore,
 ) {
@@ -74,6 +77,8 @@ class PrestamistaRepository(
     fun collectorMapClients(): List<MapClient> = apiClient.collectorMapClients(requiredToken())
 
     fun collectorRoutes(): List<CollectorRoute> = apiClient.collectorRoutes(requiredToken())
+
+    fun drivingRoute(points: List<RoutePoint>): List<RoutePoint> = googleRoutesClient.drivingRoute(points)
 
     fun collectorLoans(): List<LoanSummary> = apiClient.collectorLoans(requiredToken())
 

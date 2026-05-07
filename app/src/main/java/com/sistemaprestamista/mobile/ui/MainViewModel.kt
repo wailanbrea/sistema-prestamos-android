@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.sistemaprestamista.mobile.data.PaymentRegistrationResult
 import com.sistemaprestamista.mobile.data.PrestamistaRepository
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
+import com.sistemaprestamista.mobile.data.model.RoutePoint
 import com.sistemaprestamista.mobile.data.remote.ApiException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -380,21 +381,75 @@ class MainViewModel(
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isMapLoading = true, errorMessage = null) }
+            _uiState.update { it.copy(isMapLoading = true, errorMessage = null, routeWarning = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
-                    repository.collectorMapClients() to repository.collectorRoutes()
+                    val clients = repository.collectorMapClients()
+                    val routes = repository.collectorRoutes()
+                    val routePoints = routePointsFor(clients, routes, uiState.value.selectedMapRouteId)
+                    val realRoute = runCatching { repository.drivingRoute(routePoints) }.getOrElse { emptyList() }
+                    Triple(clients, routes, realRoute)
                 }
-            }.onSuccess { (clients, routes) ->
+            }.onSuccess { (clients, routes, realRoute) ->
                 _uiState.update {
                     it.copy(
                         isMapLoading = false,
                         mapClients = clients,
                         collectorRoutes = routes,
+                        realRoutePoints = realRoute,
+                        routeWarning = if (routePointsFor(clients, routes, it.selectedMapRouteId).size > 1 && realRoute.isEmpty()) {
+                            "Google no pudo calcular una ruta real. Revisa API Routes, coordenadas o cantidad de paradas."
+                        } else {
+                            null
+                        },
                     )
                 }
             }.onFailure { throwable ->
                 _uiState.update { it.copy(isMapLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun selectMapRoute(routeId: Long) {
+        if (uiState.value.selectedMapRouteId == routeId) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    selectedMapRouteId = routeId,
+                    isMapLoading = true,
+                    realRoutePoints = emptyList(),
+                    routeWarning = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val current = uiState.value
+                    val points = routePointsFor(current.mapClients, current.collectorRoutes, routeId)
+                    points to repository.drivingRoute(points)
+                }
+            }.onSuccess { (points, realRoute) ->
+                _uiState.update {
+                    it.copy(
+                        isMapLoading = false,
+                        realRoutePoints = realRoute,
+                        routeWarning = if (points.size > 1 && realRoute.isEmpty()) {
+                            "Google no pudo calcular una ruta real. Revisa API Routes, coordenadas o cantidad de paradas."
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }.onFailure {
+                _uiState.update {
+                    it.copy(
+                        isMapLoading = false,
+                        realRoutePoints = emptyList(),
+                        routeWarning = "Google no pudo calcular una ruta real. Revisa API Routes, coordenadas o cantidad de paradas.",
+                    )
+                }
             }
         }
     }
@@ -595,6 +650,25 @@ class MainViewModel(
             mapClients = repository.collectorMapClients(),
             routes = repository.collectorRoutes(),
         )
+    }
+
+    private fun routePointsFor(
+        clients: List<com.sistemaprestamista.mobile.data.model.MapClient>,
+        routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
+        routeId: Long,
+    ): List<RoutePoint> {
+        val visibleClients = if (routeId == 0L) {
+            clients
+        } else {
+            val clientIds = routes.firstOrNull { it.id == routeId }?.clients?.map { it.summary.id }?.toSet().orEmpty()
+            clients.filter { it.summary.id in clientIds }
+        }
+
+        return visibleClients.mapNotNull { client ->
+            val latitude = client.summary.latitude ?: return@mapNotNull null
+            val longitude = client.summary.longitude ?: return@mapNotNull null
+            RoutePoint(latitude, longitude)
+        }
     }
 
     private fun Throwable.userMessage(): String {

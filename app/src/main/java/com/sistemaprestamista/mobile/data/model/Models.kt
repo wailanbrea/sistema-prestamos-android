@@ -109,6 +109,11 @@ data class RouteClientStop(
     val financialSummary: ClientFinancialSummary,
 )
 
+data class RoutePoint(
+    val latitude: Double,
+    val longitude: Double,
+)
+
 data class ClientDetail(
     val summary: ClientSummary,
     val secondaryPhone: String?,

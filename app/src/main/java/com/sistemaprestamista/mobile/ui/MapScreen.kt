@@ -39,10 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,6 +61,7 @@ import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.sistemaprestamista.mobile.data.model.CollectorRoute
 import com.sistemaprestamista.mobile.data.model.MapClient
+import com.sistemaprestamista.mobile.data.model.RoutePoint
 import com.sistemaprestamista.mobile.ui.components.EmptyCard
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
 import java.util.Locale
@@ -74,13 +72,16 @@ private val SantoDomingo = LatLng(18.4861, -69.9312)
 fun MapScreen(
     clients: List<MapClient>,
     routes: List<CollectorRoute>,
+    selectedRouteId: Long,
+    realRoutePoints: List<RoutePoint>,
+    routeWarning: String?,
     isLoading: Boolean,
     onRefresh: () -> Unit,
+    onSelectRoute: (Long) -> Unit,
     onOpenClient: (Long) -> Unit,
 ) {
     val context = LocalContext.current
     val currency = rememberCurrency()
-    var selectedRouteId by remember { mutableLongStateOf(0L) }
     val visibleClients = remember(clients, routes, selectedRouteId) {
         if (selectedRouteId == 0L) {
             clients
@@ -127,7 +128,7 @@ fun MapScreen(
             RouteFilter(
                 routes = routes,
                 selectedRouteId = selectedRouteId,
-                onSelectRoute = { selectedRouteId = it },
+                onSelectRoute = onSelectRoute,
             )
         }
 
@@ -135,6 +136,8 @@ fun MapScreen(
             MapPanel(
                 isLoading = isLoading,
                 clients = mappedClients,
+                realRoutePoints = realRoutePoints,
+                routeWarning = routeWarning,
                 onNavigateRoute = {
                     context.startActivity(Intent(Intent.ACTION_VIEW, directionsUri(mappedClients)))
                 },
@@ -221,6 +224,8 @@ private fun chipBorder(selected: Boolean): BorderStroke {
 private fun MapPanel(
     isLoading: Boolean,
     clients: List<MapClient>,
+    realRoutePoints: List<RoutePoint>,
+    routeWarning: String?,
     onNavigateRoute: () -> Unit,
 ) {
     val cameraPositionState = rememberCameraPositionState {
@@ -260,9 +265,9 @@ private fun MapPanel(
                 properties = MapProperties(isBuildingEnabled = true),
                 uiSettings = MapUiSettings(zoomControlsEnabled = false, myLocationButtonEnabled = false),
             ) {
-                val points = clients.mapNotNull { it.latLng() }
-                if (points.size > 1) {
-                    Polyline(points = points, color = Color(0xFF0B63CE), width = 6f)
+                val routePoints = realRoutePoints.map { LatLng(it.latitude, it.longitude) }
+                if (routePoints.size > 1) {
+                    Polyline(points = routePoints, color = Color(0xFF0B63CE), width = 7f)
                 }
                 clients.forEachIndexed { index, client ->
                     val point = client.latLng() ?: return@forEachIndexed
@@ -295,6 +300,23 @@ private fun MapPanel(
                 ) {
                     Icon(Icons.Outlined.LocationOff, contentDescription = null)
                     Text("No hay clientes con coordenadas para mostrar.")
+                }
+            }
+
+            if (!routeWarning.isNullOrBlank() && clients.size > 1 && !isLoading) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(12.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                ) {
+                    Text(
+                        text = routeWarning,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
 

@@ -12,6 +12,7 @@ import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.MapClient
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
+import com.sistemaprestamista.mobile.data.model.RoutePoint
 import com.sistemaprestamista.mobile.data.model.UserProfile
 import com.sistemaprestamista.mobile.data.pending.PendingPayment
 
@@ -30,6 +31,9 @@ data class AppUiState(
     val paymentHistory: List<PaymentReceipt> = emptyList(),
     val mapClients: List<MapClient> = emptyList(),
     val collectorRoutes: List<CollectorRoute> = emptyList(),
+    val selectedMapRouteId: Long = 0L,
+    val realRoutePoints: List<RoutePoint> = emptyList(),
+    val routeWarning: String? = null,
     val isMapLoading: Boolean = false,
     val paymentHistoryFilters: PaymentHistoryFilters = PaymentHistoryFilters(),
     val isPaymentHistoryLoading: Boolean = false,
