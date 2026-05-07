@@ -132,6 +132,7 @@ class MainViewModel(
                         paymentHistory = collectorWorkload?.payments ?: it.paymentHistory,
                         mapClients = collectorWorkload?.mapClients ?: it.mapClients,
                         collectorRoutes = collectorWorkload?.routes ?: it.collectorRoutes,
+                        activeRouteSession = collectorWorkload?.activeRouteSession ?: it.activeRouteSession,
                         pendingPaymentCount = repository.pendingPaymentCount(),
                         pendingPayments = repository.pendingPayments(),
                     )
@@ -187,6 +188,7 @@ class MainViewModel(
                                 paymentHistory = outcome.collectorWorkload?.payments ?: it.paymentHistory,
                                 mapClients = outcome.collectorWorkload?.mapClients ?: it.mapClients,
                                 collectorRoutes = outcome.collectorWorkload?.routes ?: it.collectorRoutes,
+                                activeRouteSession = outcome.collectorWorkload?.activeRouteSession ?: it.activeRouteSession,
                                 pendingPaymentCount = repository.pendingPaymentCount(),
                                 lastPaymentReceipt = outcome.receipt,
                                 selectedPaymentDetail = outcome.receipt,
@@ -386,18 +388,20 @@ class MainViewModel(
                 withContext(Dispatchers.IO) {
                     val clients = repository.collectorMapClients()
                     val routes = repository.collectorRoutes()
+                    val activeSession = repository.activeRouteSession()
                     val routePoints = routePointsFor(clients, routes, uiState.value.selectedMapRouteId)
                     val realRoute = runCatching { repository.drivingRoute(routePoints) }.getOrElse { emptyList() }
-                    Triple(clients, routes, realRoute)
+                    MapLoadResult(clients, routes, activeSession, realRoute)
                 }
-            }.onSuccess { (clients, routes, realRoute) ->
+            }.onSuccess { result ->
                 _uiState.update {
                     it.copy(
                         isMapLoading = false,
-                        mapClients = clients,
-                        collectorRoutes = routes,
-                        realRoutePoints = realRoute,
-                        routeWarning = if (routePointsFor(clients, routes, it.selectedMapRouteId).size > 1 && realRoute.isEmpty()) {
+                        mapClients = result.clients,
+                        collectorRoutes = result.routes,
+                        activeRouteSession = result.activeSession,
+                        realRoutePoints = result.realRoute,
+                        routeWarning = if (routePointsFor(result.clients, result.routes, it.selectedMapRouteId).size > 1 && result.realRoute.isEmpty()) {
                             "Google no pudo calcular una ruta real. Revisa API Routes, coordenadas o cantidad de paradas."
                         } else {
                             null
@@ -406,6 +410,60 @@ class MainViewModel(
                 }
             }.onFailure { throwable ->
                 _uiState.update { it.copy(isMapLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun startRouteTracking(routeId: Long) {
+        if (routeId <= 0L) {
+            _uiState.update { it.copy(errorMessage = "Selecciona una ruta antes de iniciar seguimiento.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRouteTrackingLoading = true, errorMessage = null, successMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.startRouteSession(routeId)
+                }
+            }.onSuccess { session ->
+                _uiState.update {
+                    it.copy(
+                        isRouteTrackingLoading = false,
+                        activeRouteSession = session,
+                        selectedMapRouteId = session.routeId ?: routeId,
+                        successMessage = "Seguimiento de ruta iniciado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isRouteTrackingLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun finishRouteTracking() {
+        val sessionId = uiState.value.activeRouteSession?.id
+        if (sessionId == null) {
+            _uiState.update { it.copy(errorMessage = "No hay una ruta activa para finalizar.") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRouteTrackingLoading = true, errorMessage = null, successMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.finishRouteSession(sessionId)
+                }
+            }.onSuccess { session ->
+                _uiState.update {
+                    it.copy(
+                        isRouteTrackingLoading = false,
+                        activeRouteSession = session.takeIf { completed -> completed.status == "active" },
+                        successMessage = "Seguimiento de ruta finalizado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isRouteTrackingLoading = false, errorMessage = throwable.userMessage()) }
             }
         }
     }
@@ -594,6 +652,7 @@ class MainViewModel(
             paymentHistory = collectorWorkload?.payments.orEmpty(),
             mapClients = collectorWorkload?.mapClients.orEmpty(),
             collectorRoutes = collectorWorkload?.routes.orEmpty(),
+            activeRouteSession = collectorWorkload?.activeRouteSession,
         )
     }
 
@@ -649,6 +708,7 @@ class MainViewModel(
             payments = repository.collectorPayments(),
             mapClients = repository.collectorMapClients(),
             routes = repository.collectorRoutes(),
+            activeRouteSession = repository.activeRouteSession(),
         )
     }
 
@@ -695,6 +755,14 @@ class MainViewModel(
         val payments: List<com.sistemaprestamista.mobile.data.model.PaymentReceipt>,
         val mapClients: List<com.sistemaprestamista.mobile.data.model.MapClient>,
         val routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
+        val activeRouteSession: com.sistemaprestamista.mobile.data.model.CollectorRouteSession?,
+    )
+
+    private data class MapLoadResult(
+        val clients: List<com.sistemaprestamista.mobile.data.model.MapClient>,
+        val routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
+        val activeSession: com.sistemaprestamista.mobile.data.model.CollectorRouteSession?,
+        val realRoute: List<RoutePoint>,
     )
 
     private sealed interface PaymentRegistrationOutcome {

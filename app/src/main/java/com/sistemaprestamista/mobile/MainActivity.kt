@@ -24,6 +24,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestNotificationPermissionIfNeeded()
+        requestLocationPermissionIfNeeded()
         setContent {
             SistemaPrestamistaAndroidTheme {
                 PrestamistaApp(
@@ -47,7 +48,27 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    private fun requestLocationPermissionIfNeeded() {
+        val permissions = buildList {
+            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                add(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
+            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
+        }
+
+        if (permissions.isNotEmpty()) {
+            ActivityCompat.requestPermissions(
+                this,
+                permissions.toTypedArray(),
+                REQUEST_LOCATION,
+            )
+        }
+    }
+
     private companion object {
         const val REQUEST_NOTIFICATIONS = 3010
+        const val REQUEST_LOCATION = 3011
     }
 }

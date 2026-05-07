@@ -60,6 +60,7 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.sistemaprestamista.mobile.data.model.CollectorRoute
+import com.sistemaprestamista.mobile.data.model.CollectorRouteSession
 import com.sistemaprestamista.mobile.data.model.MapClient
 import com.sistemaprestamista.mobile.data.model.RoutePoint
 import com.sistemaprestamista.mobile.ui.components.EmptyCard
@@ -75,9 +76,13 @@ fun MapScreen(
     selectedRouteId: Long,
     realRoutePoints: List<RoutePoint>,
     routeWarning: String?,
+    activeSession: CollectorRouteSession?,
+    isRouteTrackingLoading: Boolean,
     isLoading: Boolean,
     onRefresh: () -> Unit,
     onSelectRoute: (Long) -> Unit,
+    onStartTracking: (Long) -> Unit,
+    onFinishTracking: () -> Unit,
     onOpenClient: (Long) -> Unit,
 ) {
     val context = LocalContext.current
@@ -133,6 +138,16 @@ fun MapScreen(
         }
 
         item {
+            TrackingControls(
+                activeSession = activeSession,
+                selectedRouteId = selectedRouteId,
+                isLoading = isRouteTrackingLoading,
+                onStartTracking = onStartTracking,
+                onFinishTracking = onFinishTracking,
+            )
+        }
+
+        item {
             MapPanel(
                 isLoading = isLoading,
                 clients = mappedClients,
@@ -178,6 +193,65 @@ fun MapScreen(
                     paidText = currency.format(client.financialSummary.totalPaid),
                     onOpenClient = { onOpenClient(client.summary.id) },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrackingControls(
+    activeSession: CollectorRouteSession?,
+    selectedRouteId: Long,
+    isLoading: Boolean,
+    onStartTracking: (Long) -> Unit,
+    onFinishTracking: () -> Unit,
+) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Seguimiento GPS", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = activeSession?.let { "${it.routeName.orEmpty()} · ${it.visitedStops}/${it.totalStops} visitados" }
+                            ?: "Selecciona una ruta e inicia la transmision.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = { onStartTracking(selectedRouteId) },
+                    enabled = !isLoading && selectedRouteId > 0L && activeSession?.status != "active",
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Text("Iniciar")
+                }
+                OutlinedButton(
+                    onClick = onFinishTracking,
+                    enabled = !isLoading && activeSession?.status == "active",
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Text("Finalizar")
+                }
             }
         }
     }

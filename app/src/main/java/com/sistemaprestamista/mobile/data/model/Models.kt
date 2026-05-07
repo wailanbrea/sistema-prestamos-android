@@ -103,6 +103,40 @@ data class CollectorRoute(
     val clients: List<RouteClientStop>,
 )
 
+data class CollectorRouteSession(
+    val id: Long,
+    val status: String,
+    val startedAt: String?,
+    val endedAt: String?,
+    val lastLocationAt: String?,
+    val lastLatitude: Double?,
+    val lastLongitude: Double?,
+    val collectorName: String?,
+    val routeId: Long?,
+    val routeName: String?,
+    val stops: List<RouteTrackingStop>,
+) {
+    val visitedStops: Int
+        get() = stops.count { it.visited }
+
+    val totalStops: Int
+        get() = stops.size
+}
+
+data class RouteTrackingStop(
+    val clientId: Long,
+    val clientName: String,
+    val address: String?,
+    val latitude: Double?,
+    val longitude: Double?,
+    val expectedOrder: Int,
+    val visited: Boolean,
+    val visitedOrder: Int?,
+    val visitedAt: String?,
+    val visitStatus: String?,
+    val distanceMeters: Int?,
+)
+
 data class RouteClientStop(
     val summary: ClientSummary,
     val orderNumber: Int,

@@ -5,6 +5,7 @@ import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
 import com.sistemaprestamista.mobile.data.model.CollectorRoute
+import com.sistemaprestamista.mobile.data.model.CollectorRouteSession
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentDetail
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
@@ -77,6 +78,29 @@ class PrestamistaRepository(
     fun collectorMapClients(): List<MapClient> = apiClient.collectorMapClients(requiredToken())
 
     fun collectorRoutes(): List<CollectorRoute> = apiClient.collectorRoutes(requiredToken())
+
+    fun activeRouteSession(): CollectorRouteSession? = apiClient.activeRouteSession(requiredToken())
+
+    fun startRouteSession(routeId: Long): CollectorRouteSession = apiClient.startRouteSession(requiredToken(), routeId)
+
+    fun sendRouteLocation(
+        sessionId: Long,
+        latitude: Double,
+        longitude: Double,
+        accuracyMeters: Int?,
+        batteryLevel: Int?,
+        recordedAt: String,
+    ): CollectorRouteSession = apiClient.sendRouteLocation(
+        token = requiredToken(),
+        sessionId = sessionId,
+        latitude = latitude,
+        longitude = longitude,
+        accuracyMeters = accuracyMeters,
+        batteryLevel = batteryLevel,
+        recordedAt = recordedAt,
+    )
+
+    fun finishRouteSession(sessionId: Long): CollectorRouteSession = apiClient.finishRouteSession(requiredToken(), sessionId)
 
     fun drivingRoute(points: List<RoutePoint>): List<RoutePoint> = googleRoutesClient.drivingRoute(points)
 

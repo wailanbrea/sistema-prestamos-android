@@ -10,6 +10,7 @@ import com.sistemaprestamista.mobile.data.model.ClientRouteSummary
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
 import com.sistemaprestamista.mobile.data.model.CollectorRoute
+import com.sistemaprestamista.mobile.data.model.CollectorRouteSession
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentDetail
@@ -23,6 +24,7 @@ import com.sistemaprestamista.mobile.data.model.PaymentDetailLine
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.data.model.RouteClientStop
+import com.sistemaprestamista.mobile.data.model.RouteTrackingStop
 import com.sistemaprestamista.mobile.data.model.UserProfile
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -162,6 +164,61 @@ class PrestamistaApiClient {
     fun collectorRoutes(token: String): List<CollectorRoute> {
         val json = request(path = "collector/routes", method = "GET", token = token)
         return json.getJSONArray("data").mapObjects(::parseRoute)
+    }
+
+    fun activeRouteSession(token: String): CollectorRouteSession? {
+        val json = request(path = "collector/route-sessions/active", method = "GET", token = token)
+        val data = json.optJSONObject("data")
+        return data?.let(::parseRouteSession)
+    }
+
+    fun startRouteSession(token: String, routeId: Long): CollectorRouteSession {
+        val payload = JSONObject().put("route_id", routeId)
+        val json = request(
+            path = "collector/route-sessions",
+            method = "POST",
+            token = token,
+            body = payload,
+        )
+        return parseRouteSession(json.getJSONObject("data"))
+    }
+
+    fun sendRouteLocation(
+        token: String,
+        sessionId: Long,
+        latitude: Double,
+        longitude: Double,
+        accuracyMeters: Int?,
+        batteryLevel: Int?,
+        recordedAt: String,
+    ): CollectorRouteSession {
+        val payload = JSONObject()
+            .put("latitude", latitude)
+            .put("longitude", longitude)
+            .put("recorded_at", recordedAt)
+        if (accuracyMeters != null) {
+            payload.put("accuracy_meters", accuracyMeters)
+        }
+        if (batteryLevel != null) {
+            payload.put("battery_level", batteryLevel)
+        }
+
+        val json = request(
+            path = "collector/route-sessions/$sessionId/locations",
+            method = "POST",
+            token = token,
+            body = payload,
+        )
+        return parseRouteSession(json.getJSONObject("data"))
+    }
+
+    fun finishRouteSession(token: String, sessionId: Long): CollectorRouteSession {
+        val json = request(
+            path = "collector/route-sessions/$sessionId/finish",
+            method = "POST",
+            token = token,
+        )
+        return parseRouteSession(json.getJSONObject("data"))
     }
 
     fun collectorClient(token: String, clientId: Long): ClientDetail {
@@ -319,6 +376,39 @@ class PrestamistaApiClient {
                     summary = parseClient(client),
                     orderNumber = client.optInt("order_number"),
                     financialSummary = parseFinancialSummary(client.getJSONObject("summary")),
+                )
+            },
+        )
+    }
+
+    private fun parseRouteSession(json: JSONObject): CollectorRouteSession {
+        val collector = json.optJSONObject("collector")
+        val route = json.optJSONObject("route")
+
+        return CollectorRouteSession(
+            id = json.getLong("id"),
+            status = json.optString("status"),
+            startedAt = json.nullableString("started_at"),
+            endedAt = json.nullableString("ended_at"),
+            lastLocationAt = json.nullableString("last_location_at"),
+            lastLatitude = json.nullableDouble("last_latitude"),
+            lastLongitude = json.nullableDouble("last_longitude"),
+            collectorName = collector?.nullableString("name"),
+            routeId = route?.nullableLong("id"),
+            routeName = route?.nullableString("name"),
+            stops = json.optJSONArray("stops").mapObjects { stop ->
+                RouteTrackingStop(
+                    clientId = stop.getLong("client_id"),
+                    clientName = stop.getString("client_name"),
+                    address = stop.nullableString("address"),
+                    latitude = stop.nullableDouble("latitude"),
+                    longitude = stop.nullableDouble("longitude"),
+                    expectedOrder = stop.optInt("expected_order"),
+                    visited = stop.optBoolean("visited", false),
+                    visitedOrder = stop.nullableInt("visited_order"),
+                    visitedAt = stop.nullableString("visited_at"),
+                    visitStatus = stop.nullableString("visit_status"),
+                    distanceMeters = stop.nullableInt("distance_meters"),
                 )
             },
         )
@@ -500,6 +590,14 @@ class PrestamistaApiClient {
 
     private fun JSONObject.nullableDouble(name: String): Double? {
         return if (isNull(name)) null else optDouble(name)
+    }
+
+    private fun JSONObject.nullableInt(name: String): Int? {
+        return if (isNull(name)) null else optInt(name)
+    }
+
+    private fun JSONObject.nullableLong(name: String): Long? {
+        return if (isNull(name)) null else optLong(name)
     }
 
     private fun PaymentHistoryFilters.toQueryString(): String {

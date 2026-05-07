@@ -5,6 +5,7 @@ import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
 import com.sistemaprestamista.mobile.data.model.CollectorRoute
+import com.sistemaprestamista.mobile.data.model.CollectorRouteSession
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentDetail
 import com.sistemaprestamista.mobile.data.model.LoanDetail
@@ -32,6 +33,8 @@ data class AppUiState(
     val mapClients: List<MapClient> = emptyList(),
     val collectorRoutes: List<CollectorRoute> = emptyList(),
     val selectedMapRouteId: Long = 0L,
+    val activeRouteSession: CollectorRouteSession? = null,
+    val isRouteTrackingLoading: Boolean = false,
     val realRoutePoints: List<RoutePoint> = emptyList(),
     val routeWarning: String? = null,
     val isMapLoading: Boolean = false,

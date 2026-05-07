@@ -39,9 +39,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -50,6 +52,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.printing.PrintSettingsStore
+import com.sistemaprestamista.mobile.tracking.RouteTrackingForegroundService
 import com.sistemaprestamista.mobile.ui.components.LoadingSplash
 import com.sistemaprestamista.mobile.ui.navigation.AppDestination
 import com.sistemaprestamista.mobile.ui.navigation.AppRoutes
@@ -114,6 +117,8 @@ fun PrestamistaApp(
         onLoadPaymentHistory = viewModel::loadPaymentHistory,
         onLoadMapData = viewModel::loadMapData,
         onSelectMapRoute = viewModel::selectMapRoute,
+        onStartRouteTracking = viewModel::startRouteTracking,
+        onFinishRouteTracking = viewModel::finishRouteTracking,
         onRegisterPayment = viewModel::registerPayment,
         onLoadPendingPayments = viewModel::loadPendingPayments,
         onRetryPendingPayment = viewModel::retryPendingPayment,
@@ -137,6 +142,8 @@ private fun AuthenticatedShell(
     onLoadPaymentHistory: (PaymentHistoryFilters) -> Unit,
     onLoadMapData: () -> Unit,
     onSelectMapRoute: (Long) -> Unit,
+    onStartRouteTracking: (Long) -> Unit,
+    onFinishRouteTracking: () -> Unit,
     onRegisterPayment: (Long, String, String) -> Unit,
     onLoadPendingPayments: () -> Unit,
     onRetryPendingPayment: (String) -> Unit,
@@ -145,6 +152,7 @@ private fun AuthenticatedShell(
     onLogout: () -> Unit,
 ) {
     val navController = rememberNavController()
+    val context = LocalContext.current
 
     val destinations = if (state.isCollector) {
         AppDestination.entries
@@ -158,6 +166,12 @@ private fun AuthenticatedShell(
     val isTopLevelDestination = destinations.any { it.route == currentRoute }
 
     var navigatedReceiptId by remember { mutableStateOf<Long?>(null) }
+
+    LaunchedEffect(state.activeRouteSession?.id) {
+        if (state.activeRouteSession?.status == "active") {
+            ContextCompat.startForegroundService(context, RouteTrackingForegroundService.startIntent(context))
+        }
+    }
 
     LaunchedEffect(state.lastPaymentReceipt?.id) {
         val receiptId = state.lastPaymentReceipt?.id ?: return@LaunchedEffect
@@ -256,9 +270,18 @@ private fun AuthenticatedShell(
                         selectedRouteId = state.selectedMapRouteId,
                         realRoutePoints = state.realRoutePoints,
                         routeWarning = state.routeWarning,
+                        activeSession = state.activeRouteSession,
+                        isRouteTrackingLoading = state.isRouteTrackingLoading,
                         isLoading = state.isMapLoading,
                         onRefresh = onLoadMapData,
                         onSelectRoute = onSelectMapRoute,
+                        onStartTracking = { routeId ->
+                            onStartRouteTracking(routeId)
+                        },
+                        onFinishTracking = {
+                            onFinishRouteTracking()
+                            context.startService(RouteTrackingForegroundService.stopIntent(context))
+                        },
                         onOpenClient = { clientId ->
                             navController.navigate(AppRoutes.clientDetail(clientId))
                         },
