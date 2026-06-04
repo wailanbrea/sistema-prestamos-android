@@ -141,6 +141,7 @@ fun MapScreen(
             TrackingControls(
                 activeSession = activeSession,
                 selectedRouteId = selectedRouteId,
+                routes = routes,
                 isLoading = isRouteTrackingLoading,
                 onStartTracking = onStartTracking,
                 onFinishTracking = onFinishTracking,
@@ -202,10 +203,13 @@ fun MapScreen(
 private fun TrackingControls(
     activeSession: CollectorRouteSession?,
     selectedRouteId: Long,
+    routes: List<CollectorRoute>,
     isLoading: Boolean,
     onStartTracking: (Long) -> Unit,
     onFinishTracking: () -> Unit,
 ) {
+    val startRouteId = selectedRouteId.takeIf { it > 0L } ?: routes.singleOrNull()?.id
+
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -237,8 +241,8 @@ private fun TrackingControls(
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
-                    onClick = { onStartTracking(selectedRouteId) },
-                    enabled = !isLoading && selectedRouteId > 0L && activeSession?.status != "active",
+                    onClick = { startRouteId?.let(onStartTracking) },
+                    enabled = !isLoading && startRouteId != null && activeSession?.status != "active",
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp),
                 ) {

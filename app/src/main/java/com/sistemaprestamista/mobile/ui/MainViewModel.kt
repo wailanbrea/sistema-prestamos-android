@@ -405,9 +405,14 @@ class MainViewModel(
                     val clients = repository.collectorMapClients()
                     val routes = repository.collectorRoutes()
                     val activeSession = repository.activeRouteSession()
-                    val routePoints = routePointsFor(clients, routes, uiState.value.selectedMapRouteId)
+                    val selectedRouteId = resolveSelectedMapRouteId(
+                        currentRouteId = uiState.value.selectedMapRouteId,
+                        routes = routes,
+                        activeSession = activeSession,
+                    )
+                    val routePoints = routePointsFor(clients, routes, selectedRouteId)
                     val realRoute = runCatching { repository.drivingRoute(routePoints) }.getOrElse { emptyList() }
-                    MapLoadResult(clients, routes, activeSession, realRoute)
+                    MapLoadResult(clients, routes, activeSession, selectedRouteId, realRoute)
                 }
             }.onSuccess { result ->
                 _uiState.update {
@@ -415,9 +420,10 @@ class MainViewModel(
                         isMapLoading = false,
                         mapClients = result.clients,
                         collectorRoutes = result.routes,
+                        selectedMapRouteId = result.selectedRouteId,
                         activeRouteSession = result.activeSession,
                         realRoutePoints = result.realRoute,
-                        routeWarning = if (routePointsFor(result.clients, result.routes, it.selectedMapRouteId).size > 1 && result.realRoute.isEmpty()) {
+                        routeWarning = if (routePointsFor(result.clients, result.routes, result.selectedRouteId).size > 1 && result.realRoute.isEmpty()) {
                             "Google no pudo calcular una ruta real. Revisa API Routes, coordenadas o cantidad de paradas."
                         } else {
                             null
@@ -431,7 +437,10 @@ class MainViewModel(
     }
 
     fun startRouteTracking(routeId: Long) {
-        if (routeId <= 0L) {
+        val resolvedRouteId = routeId.takeIf { it > 0L }
+            ?: uiState.value.collectorRoutes.singleOrNull()?.id
+
+        if (resolvedRouteId == null) {
             _uiState.update { it.copy(errorMessage = "Selecciona una ruta antes de iniciar seguimiento.") }
             return
         }
@@ -440,14 +449,14 @@ class MainViewModel(
             _uiState.update { it.copy(isRouteTrackingLoading = true, errorMessage = null, successMessage = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
-                    repository.startRouteSession(routeId)
+                    repository.startRouteSession(resolvedRouteId)
                 }
             }.onSuccess { session ->
                 _uiState.update {
                     it.copy(
                         isRouteTrackingLoading = false,
                         activeRouteSession = session,
-                        selectedMapRouteId = session.routeId ?: routeId,
+                        selectedMapRouteId = session.routeId ?: resolvedRouteId,
                         successMessage = "Seguimiento de ruta iniciado.",
                     )
                 }
@@ -923,6 +932,22 @@ class MainViewModel(
         }
     }
 
+    private fun resolveSelectedMapRouteId(
+        currentRouteId: Long,
+        routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
+        activeSession: com.sistemaprestamista.mobile.data.model.CollectorRouteSession?,
+    ): Long {
+        val routeIds = routes.map { it.id }.toSet()
+        val activeRouteId = activeSession?.routeId
+
+        return when {
+            activeRouteId != null && activeRouteId in routeIds -> activeRouteId
+            currentRouteId in routeIds -> currentRouteId
+            routes.size == 1 -> routes.single().id
+            else -> 0L
+        }
+    }
+
     private fun Throwable.userMessage(): String {
         return when (this) {
             is ApiException -> message ?: "Error del servidor."
@@ -984,6 +1009,7 @@ class MainViewModel(
         val clients: List<com.sistemaprestamista.mobile.data.model.MapClient>,
         val routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
         val activeSession: com.sistemaprestamista.mobile.data.model.CollectorRouteSession?,
+        val selectedRouteId: Long,
         val realRoute: List<RoutePoint>,
     )
 
