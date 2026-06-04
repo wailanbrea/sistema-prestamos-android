@@ -49,7 +49,7 @@ android {
             buildConfigField(
                 "String",
                 "API_BASE_URL",
-                "\"${normalizedApiBaseUrl("http://10.0.2.2:8001/api/v2/")}\"",
+                "\"${normalizedApiBaseUrl("https://prestamista.bsolutions.dev/api/v2/")}\"",
             )
         }
 
