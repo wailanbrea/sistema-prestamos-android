@@ -12,6 +12,14 @@ val localProperties = Properties().apply {
     }
 }
 
+fun normalizedApiBaseUrl(defaultValue: String): String {
+    val configured = (project.findProperty("API_BASE_URL") as? String)
+        ?: localProperties.getProperty("API_BASE_URL")
+        ?: defaultValue
+
+    return configured.trim().trimEnd('/') + "/"
+}
+
 android {
     namespace = "com.sistemaprestamista.mobile"
     compileSdk {
@@ -28,7 +36,6 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8001/api/v2/\"")
 
         val mapsApiKey = (project.findProperty("MAPS_API_KEY") as? String)
             ?: localProperties.getProperty("MAPS_API_KEY")
@@ -38,8 +45,21 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                "\"${normalizedApiBaseUrl("http://10.0.2.2:8001/api/v2/")}\"",
+            )
+        }
+
         release {
             isMinifyEnabled = false
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                "\"${normalizedApiBaseUrl("https://prestamista.bsolutions.dev/api/v2/")}\"",
+            )
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
