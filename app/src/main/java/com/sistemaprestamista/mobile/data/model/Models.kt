@@ -13,6 +13,8 @@ data class UserProfile(
     val company: Company,
     val roles: List<String>,
     val permissions: List<String>,
+    /** Cobrador de campo real (vinculado a un Collector activo). Lo envía el backend. */
+    val isCollector: Boolean = false,
 )
 
 data class DashboardSummary(
@@ -277,6 +279,37 @@ data class PaymentHistoryFilters(
     val status: String? = null,
     val dateFrom: String? = null,
     val dateTo: String? = null,
+)
+
+// --- Back-office / administrador ---
+
+/** Resumen financiero/inversión (endpoint admin/reports/summary). */
+data class AdminReportSummary(
+    val capitalInvested: Double,
+    val capitalOnStreet: Double,
+    val capitalRecovered: Double,
+    val interestEarned: Double,
+    val lateFeeEarned: Double,
+    val expenses: Double,
+    val newDisbursed: Double,
+    val netBalance: Double,
+    val roi: Double,
+    val monthlyReturn: Double,
+    val activeClients: Int,
+    val inactiveClients: Int,
+    val overdueClients: Int,
+)
+
+/** Una fila del rendimiento por cobrador (endpoint admin/reports/collectors). */
+data class CollectorPerformanceRow(
+    val collector: String,
+    val capital: Double,
+    val interest: Double,
+    val lateFee: Double,
+    val collected: Double,
+    val disbursed: Double,
+    val activeAccounts: Int,
+    val overdueAccounts: Int,
 )
 
 enum class PaymentMethod(

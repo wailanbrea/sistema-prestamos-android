@@ -1,5 +1,7 @@
 package com.sistemaprestamista.mobile.ui
 
+import com.sistemaprestamista.mobile.data.model.AdminReportSummary
+import com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
@@ -46,9 +48,32 @@ data class AppUiState(
     val selectedPaymentDetail: PaymentReceipt? = null,
     val isDetailLoading: Boolean = false,
     val lastPaymentReceipt: PaymentReceipt? = null,
+    // Back-office / administrador
+    val adminClients: List<ClientSummary> = emptyList(),
+    val adminLoans: List<LoanSummary> = emptyList(),
+    val pendingApprovals: List<LoanSummary> = emptyList(),
+    val reportSummary: AdminReportSummary? = null,
+    val collectorPerformance: List<CollectorPerformanceRow> = emptyList(),
+    val isApprovalActionLoading: Boolean = false,
     val errorMessage: String? = null,
     val successMessage: String? = null,
 ) {
+    private val permissions: List<String> = user?.permissions.orEmpty()
+
     val isAuthenticated: Boolean = user != null
-    val isCollector: Boolean = user?.permissions?.contains("payments.create") == true
+
+    /**
+     * Cobrador de campo: vinculado a un Collector activo (flag del backend), no el mero
+     * permiso `payments.create` (que el Administrador también tiene). Usa la app /collector.
+     */
+    val isCollector: Boolean = user?.isCollector == true
+
+    /** Vista global de cartera (clientes/préstamos de toda la empresa). */
+    val canManagePortfolio: Boolean = permissions.contains("collectors.manage") && !isCollector
+
+    /** Puede aprobar/rechazar préstamos pendientes. */
+    val canApprove: Boolean = permissions.contains("loans.approve")
+
+    /** Puede ver reportes/informes. */
+    val canViewReports: Boolean = permissions.contains("reports.view")
 }

@@ -42,12 +42,15 @@ class MainViewModel(
             runCatching {
                 withContext(Dispatchers.IO) {
                     val user = repository.login(normalizedEmail, password)
-                    val dashboard = repository.dashboard()
-                    val collectorWorkload = loadCollectorWorkloadIfAllowed(user.permissions)
-                    Triple(user, dashboard, collectorWorkload)
+                    AuthBundle(
+                        user = user,
+                        dashboard = repository.dashboard(),
+                        collectorWorkload = loadCollectorWorkloadIfAllowed(user),
+                        adminWorkload = loadAdminWorkloadIfAllowed(user),
+                    )
                 }
-            }.onSuccess { (user, dashboard, collectorWorkload) ->
-                _uiState.value = authenticatedState(user, dashboard, collectorWorkload)
+            }.onSuccess { bundle ->
+                _uiState.value = authenticatedState(bundle)
             }.onFailure { throwable ->
                 _uiState.value = AppUiState(
                     isLoading = false,
@@ -116,11 +119,13 @@ class MainViewModel(
             runCatching {
                 withContext(Dispatchers.IO) {
                     repository.syncPendingPayments()
+                    val currentUser = uiState.value.user
                     val dashboard = repository.dashboard()
-                    val collectorWorkload = loadCollectorWorkloadIfAllowed(uiState.value.user?.permissions.orEmpty())
-                    dashboard to collectorWorkload
+                    val collectorWorkload = loadCollectorWorkloadIfAllowed(currentUser)
+                    val adminWorkload = loadAdminWorkloadIfAllowed(currentUser)
+                    Triple(dashboard, collectorWorkload, adminWorkload)
                 }
-            }.onSuccess { (dashboard, collectorWorkload) ->
+            }.onSuccess { (dashboard, collectorWorkload, adminWorkload) ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -133,6 +138,11 @@ class MainViewModel(
                         mapClients = collectorWorkload?.mapClients ?: it.mapClients,
                         collectorRoutes = collectorWorkload?.routes ?: it.collectorRoutes,
                         activeRouteSession = collectorWorkload?.activeRouteSession ?: it.activeRouteSession,
+                        adminClients = adminWorkload?.clients ?: it.adminClients,
+                        adminLoans = adminWorkload?.loans ?: it.adminLoans,
+                        pendingApprovals = adminWorkload?.approvals ?: it.pendingApprovals,
+                        reportSummary = adminWorkload?.reportSummary ?: it.reportSummary,
+                        collectorPerformance = adminWorkload?.collectorPerformance ?: it.collectorPerformance,
                         pendingPaymentCount = repository.pendingPaymentCount(),
                         pendingPayments = repository.pendingPayments(),
                     )
@@ -168,7 +178,7 @@ class MainViewModel(
                     when (result) {
                         is PaymentRegistrationResult.Sent -> {
                             val dashboard = repository.dashboard()
-                            val collectorWorkload = loadCollectorWorkloadIfAllowed(uiState.value.user?.permissions.orEmpty())
+                            val collectorWorkload = loadCollectorWorkloadIfAllowed(uiState.value.user)
                             PaymentRegistrationOutcome.Sent(result.receipt, dashboard, collectorWorkload)
                         }
                         is PaymentRegistrationResult.Queued -> PaymentRegistrationOutcome.Queued(result.pendingCount)
@@ -615,12 +625,15 @@ class MainViewModel(
             runCatching {
                 withContext(Dispatchers.IO) {
                     val user = repository.me()
-                    val dashboard = repository.dashboard()
-                    val collectorWorkload = loadCollectorWorkloadIfAllowed(user.permissions)
-                    Triple(user, dashboard, collectorWorkload)
+                    AuthBundle(
+                        user = user,
+                        dashboard = repository.dashboard(),
+                        collectorWorkload = loadCollectorWorkloadIfAllowed(user),
+                        adminWorkload = loadAdminWorkloadIfAllowed(user),
+                    )
                 }
-            }.onSuccess { (user, dashboard, collectorWorkload) ->
-                _uiState.value = authenticatedState(user, dashboard, collectorWorkload)
+            }.onSuccess { bundle ->
+                _uiState.value = authenticatedState(bundle)
             }.onFailure {
                 withContext(Dispatchers.IO) {
                     repository.logout()
@@ -633,18 +646,17 @@ class MainViewModel(
         }
     }
 
-    private fun authenticatedState(
-        user: com.sistemaprestamista.mobile.data.model.UserProfile,
-        dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary,
-        collectorWorkload: CollectorWorkload?,
-    ): AppUiState {
+    private fun authenticatedState(bundle: AuthBundle): AppUiState {
+        val collectorWorkload = bundle.collectorWorkload
+        val adminWorkload = bundle.adminWorkload
+
         return AppUiState(
             isLoading = false,
             hasSavedSession = true,
             pendingPaymentCount = repository.pendingPaymentCount(),
             pendingPayments = repository.pendingPayments(),
-            user = user,
-            dashboard = dashboard,
+            user = bundle.user,
+            dashboard = bundle.dashboard,
             collectorSummary = collectorWorkload?.summary,
             collectorClients = collectorWorkload?.clients.orEmpty(),
             collectorLoans = collectorWorkload?.loans.orEmpty(),
@@ -653,6 +665,103 @@ class MainViewModel(
             mapClients = collectorWorkload?.mapClients.orEmpty(),
             collectorRoutes = collectorWorkload?.routes.orEmpty(),
             activeRouteSession = collectorWorkload?.activeRouteSession,
+            adminClients = adminWorkload?.clients.orEmpty(),
+            adminLoans = adminWorkload?.loans.orEmpty(),
+            pendingApprovals = adminWorkload?.approvals.orEmpty(),
+            reportSummary = adminWorkload?.reportSummary,
+            collectorPerformance = adminWorkload?.collectorPerformance.orEmpty(),
+        )
+    }
+
+    // --- Back-office / administrador ---
+
+    fun approveLoan(loanId: Long) {
+        resolveApproval(loanId) { repository.adminApproveLoan(loanId); "Préstamo aprobado." }
+    }
+
+    fun rejectLoan(loanId: Long, reason: String?) {
+        resolveApproval(loanId) { repository.adminRejectLoan(loanId, reason); "Préstamo rechazado." }
+    }
+
+    private fun resolveApproval(loanId: Long, action: () -> String) {
+        if (uiState.value.isApprovalActionLoading) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isApprovalActionLoading = true, errorMessage = null, successMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val message = action()
+                    val approvals = repository.adminApprovals()
+                    val dashboard = repository.dashboard()
+                    Triple(message, approvals, dashboard)
+                }
+            }.onSuccess { (message, approvals, dashboard) ->
+                _uiState.update {
+                    it.copy(
+                        isApprovalActionLoading = false,
+                        pendingApprovals = approvals,
+                        dashboard = dashboard,
+                        successMessage = message,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isApprovalActionLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun loadAdminClientDetail(clientId: Long) {
+        if (uiState.value.selectedClientDetail?.summary?.id == clientId || uiState.value.isDetailLoading) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDetailLoading = true, errorMessage = null, selectedClientDetail = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminClient(clientId) }
+            }.onSuccess { detail ->
+                _uiState.update { it.copy(isDetailLoading = false, selectedClientDetail = detail) }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isDetailLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun loadAdminLoanDetail(loanId: Long) {
+        if (uiState.value.selectedLoanDetail?.summary?.id == loanId || uiState.value.isDetailLoading) {
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDetailLoading = true, errorMessage = null, selectedLoanDetail = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminLoan(loanId) }
+            }.onSuccess { detail ->
+                _uiState.update { it.copy(isDetailLoading = false, selectedLoanDetail = detail) }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isDetailLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    private fun loadAdminWorkloadIfAllowed(
+        user: com.sistemaprestamista.mobile.data.model.UserProfile?,
+    ): AdminWorkload? {
+        val permissions = user?.permissions.orEmpty()
+        val managePortfolio = permissions.contains("collectors.manage") && user?.isCollector != true
+        val canApprove = permissions.contains("loans.approve")
+        val canViewReports = permissions.contains("reports.view")
+
+        if (!managePortfolio && !canApprove && !canViewReports) {
+            return null
+        }
+
+        return AdminWorkload(
+            clients = if (managePortfolio) repository.adminClients() else emptyList(),
+            loans = if (managePortfolio) repository.adminLoans() else emptyList(),
+            approvals = if (canApprove) repository.adminApprovals() else emptyList(),
+            reportSummary = if (canViewReports) runCatching { repository.adminReportSummary() }.getOrNull() else null,
+            collectorPerformance = if (canViewReports) runCatching { repository.adminReportCollectors() }.getOrNull().orEmpty() else emptyList(),
         )
     }
 
@@ -695,8 +804,12 @@ class MainViewModel(
         return email.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches()
     }
 
-    private fun loadCollectorWorkloadIfAllowed(permissions: List<String>): CollectorWorkload? {
-        if (!permissions.contains("payments.create")) {
+    private fun loadCollectorWorkloadIfAllowed(
+        user: com.sistemaprestamista.mobile.data.model.UserProfile?,
+    ): CollectorWorkload? {
+        // Solo carga la cartera de campo si el usuario es un cobrador real (flag del backend),
+        // no por tener el permiso payments.create (que el Administrador también tiene).
+        if (user?.isCollector != true) {
             return null
         }
 
@@ -756,6 +869,21 @@ class MainViewModel(
         val mapClients: List<com.sistemaprestamista.mobile.data.model.MapClient>,
         val routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
         val activeRouteSession: com.sistemaprestamista.mobile.data.model.CollectorRouteSession?,
+    )
+
+    private data class AdminWorkload(
+        val clients: List<com.sistemaprestamista.mobile.data.model.ClientSummary>,
+        val loans: List<com.sistemaprestamista.mobile.data.model.LoanSummary>,
+        val approvals: List<com.sistemaprestamista.mobile.data.model.LoanSummary>,
+        val reportSummary: com.sistemaprestamista.mobile.data.model.AdminReportSummary?,
+        val collectorPerformance: List<com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow>,
+    )
+
+    private data class AuthBundle(
+        val user: com.sistemaprestamista.mobile.data.model.UserProfile,
+        val dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary,
+        val collectorWorkload: CollectorWorkload?,
+        val adminWorkload: AdminWorkload?,
     )
 
     private data class MapLoadResult(

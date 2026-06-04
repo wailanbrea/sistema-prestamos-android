@@ -1,6 +1,8 @@
 package com.sistemaprestamista.mobile.data.remote
 
 import com.sistemaprestamista.mobile.BuildConfig
+import com.sistemaprestamista.mobile.data.model.AdminReportSummary
+import com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow
 import com.sistemaprestamista.mobile.data.model.Company
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientFinancialSummary
@@ -281,6 +283,100 @@ class PrestamistaApiClient {
         return parsePayment(json.getJSONObject("data"))
     }
 
+    // --- Back-office / administrador ---
+
+    fun adminClients(token: String, search: String?): List<ClientSummary> {
+        val query = buildString {
+            append("per_page=100")
+            search?.takeIf { it.isNotBlank() }?.let { append("&search=").append(it.urlEncode()) }
+        }
+        val json = request(path = "admin/clients?$query", method = "GET", token = token)
+        return json.getJSONArray("data").mapObjects(::parseClient)
+    }
+
+    fun adminClient(token: String, clientId: Long): ClientDetail {
+        val json = request(path = "admin/clients/$clientId", method = "GET", token = token)
+        return parseClientDetail(json.getJSONObject("data"))
+    }
+
+    fun adminLoans(token: String, status: String?, search: String?): List<LoanSummary> {
+        val query = buildString {
+            append("per_page=100")
+            status?.takeIf { it.isNotBlank() }?.let { append("&status=").append(it.urlEncode()) }
+            search?.takeIf { it.isNotBlank() }?.let { append("&search=").append(it.urlEncode()) }
+        }
+        val json = request(path = "admin/loans?$query", method = "GET", token = token)
+        return json.getJSONArray("data").mapObjects(::parseLoan)
+    }
+
+    fun adminLoan(token: String, loanId: Long): LoanDetail {
+        val json = request(path = "admin/loans/$loanId", method = "GET", token = token)
+        return parseLoanDetail(json.getJSONObject("data"))
+    }
+
+    fun adminApprovals(token: String): List<LoanSummary> {
+        val json = request(path = "admin/approvals", method = "GET", token = token)
+        return json.getJSONArray("data").mapObjects(::parseLoan)
+    }
+
+    fun adminApproveLoan(token: String, loanId: Long): LoanSummary {
+        val json = request(path = "admin/loans/$loanId/approve", method = "POST", token = token)
+        return parseLoan(json.getJSONObject("data"))
+    }
+
+    fun adminRejectLoan(token: String, loanId: Long, reason: String?): LoanSummary {
+        val payload = JSONObject()
+        reason?.takeIf { it.isNotBlank() }?.let { payload.put("reason", it) }
+        val json = request(path = "admin/loans/$loanId/reject", method = "POST", token = token, body = payload)
+        return parseLoan(json.getJSONObject("data"))
+    }
+
+    fun adminReportSummary(token: String, dateFrom: String?, dateTo: String?): AdminReportSummary {
+        val json = request(path = "admin/reports/summary?${rangeQuery(dateFrom, dateTo)}", method = "GET", token = token)
+        val data = json.getJSONObject("data")
+        val totals = data.getJSONObject("totals")
+        val clients = data.optJSONObject("clients") ?: JSONObject()
+
+        return AdminReportSummary(
+            capitalInvested = totals.optDouble("capital_invested", 0.0),
+            capitalOnStreet = totals.optDouble("capital_on_street", 0.0),
+            capitalRecovered = totals.optDouble("capital_recovered", 0.0),
+            interestEarned = totals.optDouble("interest_earned", 0.0),
+            lateFeeEarned = totals.optDouble("late_fee_earned", 0.0),
+            expenses = totals.optDouble("expenses", 0.0),
+            newDisbursed = totals.optDouble("new_disbursed", 0.0),
+            netBalance = totals.optDouble("net_balance", 0.0),
+            roi = totals.optDouble("roi", 0.0),
+            monthlyReturn = totals.optDouble("monthly_return", 0.0),
+            activeClients = clients.optInt("active", 0),
+            inactiveClients = clients.optInt("inactive", 0),
+            overdueClients = clients.optInt("overdue", 0),
+        )
+    }
+
+    fun adminReportCollectors(token: String, dateFrom: String?, dateTo: String?): List<CollectorPerformanceRow> {
+        val json = request(path = "admin/reports/collectors?${rangeQuery(dateFrom, dateTo)}", method = "GET", token = token)
+        return json.getJSONObject("data").optJSONArray("rows").mapObjects { row ->
+            CollectorPerformanceRow(
+                collector = row.optString("collector"),
+                capital = row.optDouble("capital", 0.0),
+                interest = row.optDouble("interest", 0.0),
+                lateFee = row.optDouble("late_fee", 0.0),
+                collected = row.optDouble("collected", 0.0),
+                disbursed = row.optDouble("disbursed", 0.0),
+                activeAccounts = row.optInt("active_accounts", 0),
+                overdueAccounts = row.optInt("overdue_accounts", 0),
+            )
+        }
+    }
+
+    private fun rangeQuery(dateFrom: String?, dateTo: String?): String {
+        return buildList {
+            dateFrom?.takeIf { it.isNotBlank() }?.let { add("date_from" to it) }
+            dateTo?.takeIf { it.isNotBlank() }?.let { add("date_to" to it) }
+        }.joinToString("&") { (key, value) -> "${key.urlEncode()}=${value.urlEncode()}" }
+    }
+
     private fun request(
         path: String,
         method: String,
@@ -325,6 +421,7 @@ class PrestamistaApiClient {
             email = json.getString("email"),
             roles = json.optJSONArray("roles").toStringList(),
             permissions = json.optJSONArray("permissions").toStringList(),
+            isCollector = json.optBoolean("is_collector", false),
             company = Company(
                 id = company.optLong("id"),
                 name = company.optString("name"),

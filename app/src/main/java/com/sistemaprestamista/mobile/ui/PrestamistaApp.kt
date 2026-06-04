@@ -124,6 +124,10 @@ fun PrestamistaApp(
         onRetryPendingPayment = viewModel::retryPendingPayment,
         onSyncPendingPayments = viewModel::syncPendingPaymentsNow,
         onDiscardPendingPayment = viewModel::discardPendingPayment,
+        onLoadAdminClientDetail = viewModel::loadAdminClientDetail,
+        onLoadAdminLoanDetail = viewModel::loadAdminLoanDetail,
+        onApproveLoan = viewModel::approveLoan,
+        onRejectLoan = { loanId -> viewModel.rejectLoan(loanId, null) },
         onLogout = viewModel::logout,
     )
 }
@@ -149,16 +153,17 @@ private fun AuthenticatedShell(
     onRetryPendingPayment: (String) -> Unit,
     onSyncPendingPayments: () -> Unit,
     onDiscardPendingPayment: (String) -> Unit,
+    onLoadAdminClientDetail: (Long) -> Unit,
+    onLoadAdminLoanDetail: (Long) -> Unit,
+    onApproveLoan: (Long) -> Unit,
+    onRejectLoan: (Long) -> Unit,
     onLogout: () -> Unit,
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
 
-    val destinations = if (state.isCollector) {
-        AppDestination.entries
-    } else {
-        listOf(AppDestination.Home, AppDestination.Profile)
-    }
+    // Las vistas se controlan por rol: cada destino declara su predicado isVisible.
+    val destinations = AppDestination.entries.filter { it.isVisible(state) }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -315,6 +320,82 @@ private fun AuthenticatedShell(
                             navController.navigate(AppRoutes.PrintSettings)
                         },
                         onLogout = onLogout,
+                    )
+                }
+
+                // --- Back-office / administrador ---
+
+                composable(AppDestination.ClientsAdmin.route) {
+                    ClientsScreen(
+                        clients = state.adminClients,
+                        onOpenClient = { clientId ->
+                            navController.navigate(AppRoutes.adminClientDetail(clientId))
+                        },
+                    )
+                }
+
+                composable(AppDestination.LoansAdmin.route) {
+                    AdminLoansScreen(
+                        loans = state.adminLoans,
+                        onOpenLoan = { loanId ->
+                            navController.navigate(AppRoutes.adminLoanDetail(loanId))
+                        },
+                    )
+                }
+
+                composable(AppDestination.Approvals.route) {
+                    ApprovalsScreen(
+                        approvals = state.pendingApprovals,
+                        isActionLoading = state.isApprovalActionLoading,
+                        onApprove = onApproveLoan,
+                        onReject = onRejectLoan,
+                        onOpenLoan = { loanId ->
+                            navController.navigate(AppRoutes.adminLoanDetail(loanId))
+                        },
+                    )
+                }
+
+                composable(AppDestination.Reports.route) {
+                    AdminReportsScreen(
+                        summary = state.reportSummary,
+                        collectors = state.collectorPerformance,
+                    )
+                }
+
+                composable(AppRoutes.AdminClientDetail) { backStackEntry ->
+                    val clientId = backStackEntry.arguments?.getString("clientId")?.toLongOrNull()
+
+                    LaunchedEffect(clientId) {
+                        if (clientId != null) {
+                            onLoadAdminClientDetail(clientId)
+                        }
+                    }
+
+                    ClientDetailScreen(
+                        detail = state.selectedClientDetail?.takeIf { it.summary.id == clientId },
+                        isLoading = state.isDetailLoading,
+                        fallbackClient = state.adminClients.firstOrNull { it.id == clientId },
+                        onOpenLoan = { loanId ->
+                            navController.navigate(AppRoutes.adminLoanDetail(loanId))
+                        },
+                        onOpenInstallment = { },
+                    )
+                }
+
+                composable(AppRoutes.AdminLoanDetail) { backStackEntry ->
+                    val loanId = backStackEntry.arguments?.getString("loanId")?.toLongOrNull()
+
+                    LaunchedEffect(loanId) {
+                        if (loanId != null) {
+                            onLoadAdminLoanDetail(loanId)
+                        }
+                    }
+
+                    LoanDetailScreen(
+                        detail = state.selectedLoanDetail?.takeIf { it.summary.id == loanId },
+                        isLoading = state.isDetailLoading,
+                        fallbackLoan = state.adminLoans.firstOrNull { it.id == loanId },
+                        onOpenInstallment = { },
                     )
                 }
 
@@ -575,6 +656,8 @@ private fun currentDestination(
             AppRoutes.ClientDetail -> AppDestination.Clients
             AppRoutes.LoanDetail,
             AppRoutes.InstallmentDetail -> AppDestination.Collections
+            AppRoutes.AdminClientDetail -> AppDestination.ClientsAdmin
+            AppRoutes.AdminLoanDetail -> AppDestination.LoansAdmin
             AppRoutes.ReceiptDetail -> AppDestination.Payments
             AppRoutes.PrintSettings,
             AppRoutes.PendingPayments -> AppDestination.Profile
@@ -587,8 +670,8 @@ private fun currentTitle(
     fallback: AppDestination,
 ): String {
     return when (route) {
-        AppRoutes.ClientDetail -> "Detalle cliente"
-        AppRoutes.LoanDetail -> "Detalle préstamo"
+        AppRoutes.ClientDetail, AppRoutes.AdminClientDetail -> "Detalle cliente"
+        AppRoutes.LoanDetail, AppRoutes.AdminLoanDetail -> "Detalle préstamo"
         AppRoutes.InstallmentDetail -> "Detalle cuota"
         AppRoutes.ReceiptDetail -> "Recibo"
         AppRoutes.PrintSettings -> "Impresora"

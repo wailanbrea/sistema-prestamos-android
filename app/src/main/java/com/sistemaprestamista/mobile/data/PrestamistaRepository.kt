@@ -55,6 +55,28 @@ class PrestamistaRepository(
 
     fun dashboard(): DashboardSummary = apiClient.dashboard(requiredToken())
 
+    // --- Back-office / administrador ---
+
+    fun adminClients(search: String? = null): List<ClientSummary> = apiClient.adminClients(requiredToken(), search)
+
+    fun adminClient(clientId: Long): ClientDetail = apiClient.adminClient(requiredToken(), clientId)
+
+    fun adminLoans(status: String? = null, search: String? = null): List<LoanSummary> = apiClient.adminLoans(requiredToken(), status, search)
+
+    fun adminLoan(loanId: Long): LoanDetail = apiClient.adminLoan(requiredToken(), loanId)
+
+    fun adminApprovals(): List<LoanSummary> = apiClient.adminApprovals(requiredToken())
+
+    fun adminApproveLoan(loanId: Long): LoanSummary = apiClient.adminApproveLoan(requiredToken(), loanId)
+
+    fun adminRejectLoan(loanId: Long, reason: String? = null): LoanSummary = apiClient.adminRejectLoan(requiredToken(), loanId, reason)
+
+    fun adminReportSummary(dateFrom: String? = null, dateTo: String? = null): com.sistemaprestamista.mobile.data.model.AdminReportSummary =
+        apiClient.adminReportSummary(requiredToken(), dateFrom, dateTo)
+
+    fun adminReportCollectors(dateFrom: String? = null, dateTo: String? = null): List<com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow> =
+        apiClient.adminReportCollectors(requiredToken(), dateFrom, dateTo)
+
     fun requestPasswordReset(email: String): String = apiClient.requestPasswordReset(email.trim())
 
     fun resetPassword(
