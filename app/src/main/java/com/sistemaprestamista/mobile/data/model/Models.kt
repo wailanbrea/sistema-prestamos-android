@@ -42,6 +42,9 @@ data class CollectorSummary(
     val lateLoans: Int,
     val pendingInstallments: Int,
     val collectedToday: Double,
+    val commissionGeneratedTotal: Double = 0.0,
+    val commissionPendingTotal: Double = 0.0,
+    val commissionPaidTotal: Double = 0.0,
 )
 
 data class ClientSummary(
@@ -255,6 +258,16 @@ data class PaymentDetailLine(
     val amountPaid: Double,
 )
 
+data class PaymentCommission(
+    val id: Long,
+    val commissionType: String,
+    val commissionValue: Double,
+    val baseAmount: Double,
+    val commissionAmount: Double,
+    val status: String,
+    val paidAt: String?,
+)
+
 data class PaymentReceipt(
     val id: Long,
     val receiptNumber: String,
@@ -271,6 +284,7 @@ data class PaymentReceipt(
     val paymentMethod: String,
     val status: String,
     val details: List<PaymentDetailLine> = emptyList(),
+    val commission: PaymentCommission? = null,
 )
 
 data class PaymentHistoryFilters(

@@ -302,6 +302,28 @@ private fun CollectorOverview(state: AppUiState) {
                     modifier = Modifier.weight(1f),
                 )
             }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                RouteMetricCard(
+                    title = "Comision",
+                    value = currency.format(summary.commissionGeneratedTotal),
+                    icon = Icons.Outlined.TrendingUp,
+                    valueColor = PrimaryBlue,
+                    iconColor = PrimaryBlue,
+                    iconBackground = SoftBlue,
+                    modifier = Modifier.weight(1f),
+                )
+
+                RouteMetricCard(
+                    title = "Pendiente",
+                    value = currency.format(summary.commissionPendingTotal),
+                    icon = Icons.Outlined.PendingActions,
+                    valueColor = Amber,
+                    iconColor = Amber,
+                    iconBackground = Color(0xFFFFF4E5),
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
@@ -365,7 +387,8 @@ private fun LastReceiptModernCard(
 
                         Text(
                             text = if (lastPayment != null) {
-                                "${lastPayment.paymentDate ?: "-"} · ${currency.format(lastPayment.amount)}"
+                                val commission = currency.format(lastPayment.commission?.commissionAmount ?: 0.0)
+                                "${lastPayment.paymentDate ?: "-"} · ${currency.format(lastPayment.amount)} · Comision $commission"
                             } else {
                                 "Cuando registres un pago aparecerá aquí"
                             },
@@ -433,6 +456,7 @@ private fun PaymentHistoryPreview(payments: List<PaymentReceipt>) {
                     PaymentHistoryRow(
                         payment = payment,
                         amount = currency.format(payment.amount),
+                        commissionAmount = currency.format(payment.commission?.commissionAmount ?: 0.0),
                         showDivider = index < payments.take(5).lastIndex,
                     )
                 }
@@ -445,6 +469,7 @@ private fun PaymentHistoryPreview(payments: List<PaymentReceipt>) {
 private fun PaymentHistoryRow(
     payment: PaymentReceipt,
     amount: String,
+    commissionAmount: String,
     showDivider: Boolean,
 ) {
     Column {
@@ -485,7 +510,7 @@ private fun PaymentHistoryRow(
                     )
 
                     Text(
-                        text = "${payment.receiptNumber} · ${payment.paymentDate ?: "-"}",
+                        text = "${payment.receiptNumber} · ${payment.paymentDate ?: "-"} · Comision $commissionAmount",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextMuted,
                         maxLines = 1,

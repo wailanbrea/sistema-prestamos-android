@@ -155,6 +155,17 @@ internal fun ReceiptDetailScreen(
             isCancelled = isCancelled,
         )
 
+        receipt.commission?.let { commission ->
+            CommissionDetailCard(
+                commissionType = commission.commissionType,
+                commissionValue = commission.commissionValue,
+                baseAmount = currency.format(commission.baseAmount),
+                commissionAmount = currency.format(commission.commissionAmount),
+                status = commission.status,
+                paidAt = commission.paidAt,
+            )
+        }
+
         if (receipt.details.isNotEmpty()) {
             InstallmentDetailsCard(
                 receipt = receipt,
@@ -530,6 +541,45 @@ private fun StatusBadge(
             fontWeight = FontWeight.Bold,
             color = if (isCancelled) Error else Success,
         )
+    }
+}
+
+@Composable
+private fun CommissionDetailCard(
+    commissionType: String,
+    commissionValue: Double,
+    baseAmount: String,
+    commissionAmount: String,
+    status: String,
+    paidAt: String?,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Comision del cobrador",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = TextMain,
+            )
+
+            ReceiptInfoRow("Base", baseAmount)
+            ReceiptInfoRow("Comision", commissionAmount)
+            ReceiptInfoRow("Tipo", commissionType.ifBlank { "-" })
+            ReceiptInfoRow("Valor", commissionValue.toString())
+            ReceiptInfoRow("Estado", status.ifBlank { "pendiente" }, showDivider = paidAt != null)
+
+            paidAt?.let {
+                ReceiptInfoRow("Pagada en", it, showDivider = false)
+            }
+        }
     }
 }
 

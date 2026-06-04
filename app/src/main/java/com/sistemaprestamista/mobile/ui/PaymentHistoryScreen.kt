@@ -538,6 +538,40 @@ private fun PaymentCard(
                 )
             }
 
+            payment.commission?.let { commission ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(SurfaceContainerLow)
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = "Comision generada",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Secondary,
+                        )
+
+                        Text(
+                            text = commission.status.ifBlank { "pendiente" },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = TextVariant,
+                        )
+                    }
+
+                    Text(
+                        text = currency.format(commission.commissionAmount),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = SuccessText,
+                    )
+                }
+            }
+
             Button(
                 onClick = onOpenReceipt,
                 modifier = Modifier

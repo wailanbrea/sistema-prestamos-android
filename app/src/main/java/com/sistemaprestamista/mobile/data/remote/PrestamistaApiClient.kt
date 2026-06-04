@@ -24,6 +24,7 @@ import com.sistemaprestamista.mobile.data.model.LoginResult
 import com.sistemaprestamista.mobile.data.model.MapClient
 import com.sistemaprestamista.mobile.data.model.PaymentDetailLine
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
+import com.sistemaprestamista.mobile.data.model.PaymentCommission
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.data.model.RouteClientStop
 import com.sistemaprestamista.mobile.data.model.RouteTrackingStop
@@ -141,6 +142,7 @@ class PrestamistaApiClient {
         val json = request(path = "collector/summary", method = "GET", token = token)
         val data = json.getJSONObject("data")
         val collector = data.getJSONObject("collector")
+        val commissions = data.optJSONObject("commissions") ?: JSONObject()
 
         return CollectorSummary(
             collectorId = collector.getLong("id"),
@@ -150,6 +152,9 @@ class PrestamistaApiClient {
             lateLoans = data.optInt("late_loans", 0),
             pendingInstallments = data.optInt("pending_installments", 0),
             collectedToday = data.optDouble("collected_today", 0.0),
+            commissionGeneratedTotal = commissions.optDouble("generated_total", 0.0),
+            commissionPendingTotal = commissions.optDouble("pending_total", 0.0),
+            commissionPaidTotal = commissions.optDouble("paid_total", 0.0),
         )
     }
 
@@ -728,6 +733,19 @@ class PrestamistaApiClient {
                     amountPaid = detail.optDouble("amount_paid", 0.0),
                 )
             },
+            commission = json.optJSONObject("commission")?.let(::parsePaymentCommission),
+        )
+    }
+
+    private fun parsePaymentCommission(json: JSONObject): PaymentCommission {
+        return PaymentCommission(
+            id = json.getLong("id"),
+            commissionType = json.optString("commission_type"),
+            commissionValue = json.optDouble("commission_value", 0.0),
+            baseAmount = json.optDouble("base_amount", 0.0),
+            commissionAmount = json.optDouble("commission_amount", 0.0),
+            status = json.optString("status"),
+            paidAt = json.nullableString("paid_at"),
         )
     }
 

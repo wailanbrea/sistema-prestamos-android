@@ -44,7 +44,7 @@ class MainViewModel(
                     val user = repository.login(normalizedEmail, password)
                     AuthBundle(
                         user = user,
-                        dashboard = repository.dashboard(),
+                        dashboard = loadDashboardIfAllowed(user),
                         collectorWorkload = loadCollectorWorkloadIfAllowed(user),
                         adminWorkload = loadAdminWorkloadIfAllowed(user),
                         cashboxWorkload = loadCashboxWorkloadIfAllowed(user),
@@ -121,7 +121,7 @@ class MainViewModel(
                 withContext(Dispatchers.IO) {
                     repository.syncPendingPayments()
                     val currentUser = uiState.value.user
-                    val dashboard = repository.dashboard()
+                    val dashboard = loadDashboardIfAllowed(currentUser)
                     val collectorWorkload = loadCollectorWorkloadIfAllowed(currentUser)
                     val adminWorkload = loadAdminWorkloadIfAllowed(currentUser)
                     val cashboxWorkload = loadCashboxWorkloadIfAllowed(currentUser)
@@ -131,7 +131,7 @@ class MainViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        dashboard = dashboard,
+                        dashboard = dashboard ?: it.dashboard,
                         collectorSummary = collectorWorkload?.summary ?: it.collectorSummary,
                         collectorClients = collectorWorkload?.clients ?: it.collectorClients,
                         collectorLoans = collectorWorkload?.loans ?: it.collectorLoans,
@@ -183,7 +183,7 @@ class MainViewModel(
                     )
                     when (result) {
                         is PaymentRegistrationResult.Sent -> {
-                            val dashboard = repository.dashboard()
+                            val dashboard = loadDashboardIfAllowed(uiState.value.user)
                             val collectorWorkload = loadCollectorWorkloadIfAllowed(uiState.value.user)
                             PaymentRegistrationOutcome.Sent(result.receipt, dashboard, collectorWorkload)
                         }
@@ -196,7 +196,7 @@ class MainViewModel(
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                dashboard = outcome.dashboard,
+                                dashboard = outcome.dashboard ?: it.dashboard,
                                 collectorSummary = outcome.collectorWorkload?.summary ?: it.collectorSummary,
                                 collectorClients = outcome.collectorWorkload?.clients ?: it.collectorClients,
                                 collectorLoans = outcome.collectorWorkload?.loans ?: it.collectorLoans,
@@ -633,7 +633,7 @@ class MainViewModel(
                     val user = repository.me()
                     AuthBundle(
                         user = user,
-                        dashboard = repository.dashboard(),
+                        dashboard = loadDashboardIfAllowed(user),
                         collectorWorkload = loadCollectorWorkloadIfAllowed(user),
                         adminWorkload = loadAdminWorkloadIfAllowed(user),
                         cashboxWorkload = loadCashboxWorkloadIfAllowed(user),
@@ -892,6 +892,18 @@ class MainViewModel(
         )
     }
 
+    private fun loadDashboardIfAllowed(
+        user: com.sistemaprestamista.mobile.data.model.UserProfile?,
+    ): com.sistemaprestamista.mobile.data.model.DashboardSummary? {
+        val permissions = user?.permissions.orEmpty()
+
+        if (user?.isCollector == true || !permissions.contains("dashboard.view")) {
+            return null
+        }
+
+        return repository.dashboard()
+    }
+
     private fun routePointsFor(
         clients: List<com.sistemaprestamista.mobile.data.model.MapClient>,
         routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
@@ -948,7 +960,7 @@ class MainViewModel(
 
     private data class AuthBundle(
         val user: com.sistemaprestamista.mobile.data.model.UserProfile,
-        val dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary,
+        val dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary?,
         val collectorWorkload: CollectorWorkload?,
         val adminWorkload: AdminWorkload?,
         val cashboxWorkload: CashboxWorkload?,
@@ -962,7 +974,7 @@ class MainViewModel(
     )
 
     private data class RefreshBundle(
-        val dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary,
+        val dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary?,
         val collectorWorkload: CollectorWorkload?,
         val adminWorkload: AdminWorkload?,
         val cashboxWorkload: CashboxWorkload?,
@@ -978,7 +990,7 @@ class MainViewModel(
     private sealed interface PaymentRegistrationOutcome {
         data class Sent(
             val receipt: com.sistemaprestamista.mobile.data.model.PaymentReceipt,
-            val dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary,
+            val dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary?,
             val collectorWorkload: CollectorWorkload?,
         ) : PaymentRegistrationOutcome
 
