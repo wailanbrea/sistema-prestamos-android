@@ -1,6 +1,8 @@
 package com.sistemaprestamista.mobile.ui
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -48,6 +50,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -74,6 +79,7 @@ fun MapScreen(
     clients: List<MapClient>,
     routes: List<CollectorRoute>,
     selectedRouteId: Long,
+    optimizedRouteClientIds: List<Long>,
     realRoutePoints: List<RoutePoint>,
     routeWarning: String?,
     activeSession: CollectorRouteSession?,
@@ -81,23 +87,27 @@ fun MapScreen(
     isLoading: Boolean,
     onRefresh: () -> Unit,
     onSelectRoute: (Long) -> Unit,
-    onStartTracking: (Long) -> Unit,
+    onStartTracking: (Long, RoutePoint?) -> Unit,
     onFinishTracking: () -> Unit,
     onOpenClient: (Long) -> Unit,
 ) {
     val context = LocalContext.current
     val currency = rememberCurrency()
-    val visibleClients = remember(clients, routes, selectedRouteId) {
+    val locationClient = remember(context) { LocationServices.getFusedLocationProviderClient(context) }
+    val visibleClients = remember(clients, routes, selectedRouteId, optimizedRouteClientIds) {
         if (selectedRouteId == 0L) {
             clients
         } else {
-            val clientIds = routes
-                .firstOrNull { it.id == selectedRouteId }
-                ?.clients
-                ?.map { it.summary.id }
-                ?.toSet()
-                .orEmpty()
-            clients.filter { it.summary.id in clientIds }
+            val routeClientIds = optimizedRouteClientIds.ifEmpty {
+                routes
+                    .firstOrNull { it.id == selectedRouteId }
+                    ?.clients
+                    ?.sortedBy { it.orderNumber }
+                    ?.map { it.summary.id }
+                    .orEmpty()
+            }
+            val clientsById = clients.associateBy { it.summary.id }
+            routeClientIds.mapNotNull { clientsById[it] }
         }
     }
     val mappedClients = visibleClients.filter { it.hasCoordinates }
@@ -143,7 +153,24 @@ fun MapScreen(
                 selectedRouteId = selectedRouteId,
                 routes = routes,
                 isLoading = isRouteTrackingLoading,
-                onStartTracking = onStartTracking,
+                onStartTracking = { routeId ->
+                    if (!hasFineLocationPermission(context)) {
+                        onStartTracking(routeId, null)
+                        return@TrackingControls
+                    }
+
+                    locationClient
+                        .getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                        .addOnSuccessListener { location ->
+                            onStartTracking(
+                                routeId,
+                                location?.let { RoutePoint(it.latitude, it.longitude) },
+                            )
+                        }
+                        .addOnFailureListener {
+                            onStartTracking(routeId, null)
+                        }
+                },
                 onFinishTracking = onFinishTracking,
             )
         }
@@ -507,4 +534,9 @@ private fun directionsUri(clients: List<MapClient>): Uri {
             }
         },
     )
+}
+
+private fun hasFineLocationPermission(context: android.content.Context): Boolean {
+    return ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 }

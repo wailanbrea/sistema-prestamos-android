@@ -147,7 +147,7 @@ private fun AuthenticatedShell(
     onLoadPaymentHistory: (PaymentHistoryFilters) -> Unit,
     onLoadMapData: () -> Unit,
     onSelectMapRoute: (Long) -> Unit,
-    onStartRouteTracking: (Long) -> Unit,
+    onStartRouteTracking: (Long, com.sistemaprestamista.mobile.data.model.RoutePoint?) -> Unit,
     onFinishRouteTracking: () -> Unit,
     onRegisterPayment: (Long, String, String) -> Unit,
     onLoadPendingPayments: () -> Unit,
@@ -275,6 +275,7 @@ private fun AuthenticatedShell(
                         clients = state.mapClients,
                         routes = state.collectorRoutes,
                         selectedRouteId = state.selectedMapRouteId,
+                        optimizedRouteClientIds = state.optimizedRouteClientIds,
                         realRoutePoints = state.realRoutePoints,
                         routeWarning = state.routeWarning,
                         activeSession = state.activeRouteSession,
@@ -282,8 +283,8 @@ private fun AuthenticatedShell(
                         isLoading = state.isMapLoading,
                         onRefresh = onLoadMapData,
                         onSelectRoute = onSelectMapRoute,
-                        onStartTracking = { routeId ->
-                            onStartRouteTracking(routeId)
+                        onStartTracking = { routeId, origin ->
+                            onStartRouteTracking(routeId, origin)
                         },
                         onFinishTracking = {
                             onFinishRouteTracking()

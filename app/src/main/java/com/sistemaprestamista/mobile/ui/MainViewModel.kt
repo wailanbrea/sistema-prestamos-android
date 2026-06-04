@@ -18,6 +18,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.util.UUID
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 class MainViewModel(
     private val repository: PrestamistaRepository,
@@ -421,6 +426,7 @@ class MainViewModel(
                         mapClients = result.clients,
                         collectorRoutes = result.routes,
                         selectedMapRouteId = result.selectedRouteId,
+                        optimizedRouteClientIds = routeClientIdsFor(result.routes, result.selectedRouteId),
                         activeRouteSession = result.activeSession,
                         realRoutePoints = result.realRoute,
                         routeWarning = if (routePointsFor(result.clients, result.routes, result.selectedRouteId).size > 1 && result.realRoute.isEmpty()) {
@@ -436,7 +442,7 @@ class MainViewModel(
         }
     }
 
-    fun startRouteTracking(routeId: Long) {
+    fun startRouteTracking(routeId: Long, origin: RoutePoint? = null) {
         val resolvedRouteId = routeId.takeIf { it > 0L }
             ?: uiState.value.collectorRoutes.singleOrNull()?.id
 
@@ -449,14 +455,34 @@ class MainViewModel(
             _uiState.update { it.copy(isRouteTrackingLoading = true, errorMessage = null, successMessage = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
-                    repository.startRouteSession(resolvedRouteId)
+                    val session = repository.startRouteSession(resolvedRouteId)
+                    val current = uiState.value
+                    val selectedRouteId = session.routeId ?: resolvedRouteId
+                    val optimizedClientIds = optimizedClientIdsForRoute(
+                        clients = current.mapClients,
+                        routes = current.collectorRoutes,
+                        routeId = selectedRouteId,
+                        origin = origin,
+                    )
+                    val routePoints = routePointsFor(
+                        clients = current.mapClients,
+                        routes = current.collectorRoutes,
+                        routeId = selectedRouteId,
+                        orderedClientIds = optimizedClientIds,
+                        origin = origin,
+                    )
+                    val realRoute = runCatching { repository.drivingRoute(routePoints) }.getOrElse { emptyList() }
+
+                    RouteStartResult(session, selectedRouteId, optimizedClientIds, realRoute)
                 }
-            }.onSuccess { session ->
+            }.onSuccess { result ->
                 _uiState.update {
                     it.copy(
                         isRouteTrackingLoading = false,
-                        activeRouteSession = session,
-                        selectedMapRouteId = session.routeId ?: resolvedRouteId,
+                        activeRouteSession = result.session,
+                        selectedMapRouteId = result.selectedRouteId,
+                        optimizedRouteClientIds = result.optimizedClientIds,
+                        realRoutePoints = result.realRoute,
                         successMessage = "Seguimiento de ruta iniciado.",
                     )
                 }
@@ -502,6 +528,7 @@ class MainViewModel(
             _uiState.update {
                 it.copy(
                     selectedMapRouteId = routeId,
+                    optimizedRouteClientIds = routeClientIdsFor(it.collectorRoutes, routeId),
                     isMapLoading = true,
                     realRoutePoints = emptyList(),
                     routeWarning = null,
@@ -510,7 +537,13 @@ class MainViewModel(
             runCatching {
                 withContext(Dispatchers.IO) {
                     val current = uiState.value
-                    val points = routePointsFor(current.mapClients, current.collectorRoutes, routeId)
+                    val orderedClientIds = routeClientIdsFor(current.collectorRoutes, routeId)
+                    val points = routePointsFor(
+                        clients = current.mapClients,
+                        routes = current.collectorRoutes,
+                        routeId = routeId,
+                        orderedClientIds = orderedClientIds,
+                    )
                     points to repository.drivingRoute(points)
                 }
             }.onSuccess { (points, realRoute) ->
@@ -917,19 +950,87 @@ class MainViewModel(
         clients: List<com.sistemaprestamista.mobile.data.model.MapClient>,
         routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
         routeId: Long,
+        orderedClientIds: List<Long> = routeClientIdsFor(routes, routeId),
+        origin: RoutePoint? = null,
     ): List<RoutePoint> {
         val visibleClients = if (routeId == 0L) {
             clients
         } else {
-            val clientIds = routes.firstOrNull { it.id == routeId }?.clients?.map { it.summary.id }?.toSet().orEmpty()
-            clients.filter { it.summary.id in clientIds }
+            val clientsById = clients.associateBy { it.summary.id }
+            orderedClientIds.mapNotNull { clientsById[it] }
         }
 
-        return visibleClients.mapNotNull { client ->
+        val stopPoints = visibleClients.mapNotNull { client ->
             val latitude = client.summary.latitude ?: return@mapNotNull null
             val longitude = client.summary.longitude ?: return@mapNotNull null
             RoutePoint(latitude, longitude)
         }
+
+        return if (origin != null && stopPoints.isNotEmpty()) {
+            listOf(origin) + stopPoints
+        } else {
+            stopPoints
+        }
+    }
+
+    private fun routeClientIdsFor(
+        routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
+        routeId: Long,
+    ): List<Long> {
+        if (routeId == 0L) {
+            return emptyList()
+        }
+
+        return routes
+            .firstOrNull { it.id == routeId }
+            ?.clients
+            ?.sortedBy { it.orderNumber }
+            ?.map { it.summary.id }
+            .orEmpty()
+    }
+
+    private fun optimizedClientIdsForRoute(
+        clients: List<com.sistemaprestamista.mobile.data.model.MapClient>,
+        routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
+        routeId: Long,
+        origin: RoutePoint?,
+    ): List<Long> {
+        val baseClientIds = routeClientIdsFor(routes, routeId)
+        if (origin == null || baseClientIds.size < 2) {
+            return baseClientIds
+        }
+
+        val clientsById = clients.associateBy { it.summary.id }
+        val remaining = baseClientIds.mapNotNull { clientId ->
+            val client = clientsById[clientId] ?: return@mapNotNull null
+            val latitude = client.summary.latitude ?: return@mapNotNull null
+            val longitude = client.summary.longitude ?: return@mapNotNull null
+            client.summary.id to RoutePoint(latitude, longitude)
+        }.toMutableList()
+
+        val optimizedIds = mutableListOf<Long>()
+        var cursor: RoutePoint = origin
+
+        while (remaining.isNotEmpty()) {
+            val nearest = remaining.minBy { (_, point) -> distanceMeters(cursor, point) }
+            optimizedIds.add(nearest.first)
+            cursor = nearest.second
+            remaining.remove(nearest)
+        }
+
+        return optimizedIds + baseClientIds.filterNot { it in optimizedIds }
+    }
+
+    private fun distanceMeters(from: RoutePoint, to: RoutePoint): Double {
+        val earthRadiusMeters = 6371000.0
+        val latDelta = Math.toRadians(to.latitude - from.latitude)
+        val lngDelta = Math.toRadians(to.longitude - from.longitude)
+        val fromLat = Math.toRadians(from.latitude)
+        val toLat = Math.toRadians(to.latitude)
+        val a = sin(latDelta / 2).pow(2.0) +
+            cos(fromLat) * cos(toLat) * sin(lngDelta / 2).pow(2.0)
+
+        return earthRadiusMeters * 2 * atan2(sqrt(a), sqrt(1 - a))
     }
 
     private fun resolveSelectedMapRouteId(
@@ -1010,6 +1111,13 @@ class MainViewModel(
         val routes: List<com.sistemaprestamista.mobile.data.model.CollectorRoute>,
         val activeSession: com.sistemaprestamista.mobile.data.model.CollectorRouteSession?,
         val selectedRouteId: Long,
+        val realRoute: List<RoutePoint>,
+    )
+
+    private data class RouteStartResult(
+        val session: com.sistemaprestamista.mobile.data.model.CollectorRouteSession,
+        val selectedRouteId: Long,
+        val optimizedClientIds: List<Long>,
         val realRoute: List<RoutePoint>,
     )
 

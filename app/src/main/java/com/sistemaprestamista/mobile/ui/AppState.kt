@@ -39,6 +39,7 @@ data class AppUiState(
     val mapClients: List<MapClient> = emptyList(),
     val collectorRoutes: List<CollectorRoute> = emptyList(),
     val selectedMapRouteId: Long = 0L,
+    val optimizedRouteClientIds: List<Long> = emptyList(),
     val activeRouteSession: CollectorRouteSession? = null,
     val isRouteTrackingLoading: Boolean = false,
     val realRoutePoints: List<RoutePoint> = emptyList(),
