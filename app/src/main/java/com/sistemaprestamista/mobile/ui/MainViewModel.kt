@@ -47,6 +47,7 @@ class MainViewModel(
                         dashboard = repository.dashboard(),
                         collectorWorkload = loadCollectorWorkloadIfAllowed(user),
                         adminWorkload = loadAdminWorkloadIfAllowed(user),
+                        cashboxWorkload = loadCashboxWorkloadIfAllowed(user),
                     )
                 }
             }.onSuccess { bundle ->
@@ -123,9 +124,10 @@ class MainViewModel(
                     val dashboard = repository.dashboard()
                     val collectorWorkload = loadCollectorWorkloadIfAllowed(currentUser)
                     val adminWorkload = loadAdminWorkloadIfAllowed(currentUser)
-                    Triple(dashboard, collectorWorkload, adminWorkload)
+                    val cashboxWorkload = loadCashboxWorkloadIfAllowed(currentUser)
+                    RefreshBundle(dashboard, collectorWorkload, adminWorkload, cashboxWorkload)
                 }
-            }.onSuccess { (dashboard, collectorWorkload, adminWorkload) ->
+            }.onSuccess { (dashboard, collectorWorkload, adminWorkload, cashboxWorkload) ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -143,6 +145,10 @@ class MainViewModel(
                         pendingApprovals = adminWorkload?.approvals ?: it.pendingApprovals,
                         reportSummary = adminWorkload?.reportSummary ?: it.reportSummary,
                         collectorPerformance = adminWorkload?.collectorPerformance ?: it.collectorPerformance,
+                        expenses = cashboxWorkload?.expenses ?: it.expenses,
+                        expenseCategories = cashboxWorkload?.categories ?: it.expenseCategories,
+                        cashMovements = cashboxWorkload?.movements ?: it.cashMovements,
+                        cashSummary = cashboxWorkload?.summary ?: it.cashSummary,
                         pendingPaymentCount = repository.pendingPaymentCount(),
                         pendingPayments = repository.pendingPayments(),
                     )
@@ -630,6 +636,7 @@ class MainViewModel(
                         dashboard = repository.dashboard(),
                         collectorWorkload = loadCollectorWorkloadIfAllowed(user),
                         adminWorkload = loadAdminWorkloadIfAllowed(user),
+                        cashboxWorkload = loadCashboxWorkloadIfAllowed(user),
                     )
                 }
             }.onSuccess { bundle ->
@@ -670,6 +677,66 @@ class MainViewModel(
             pendingApprovals = adminWorkload?.approvals.orEmpty(),
             reportSummary = adminWorkload?.reportSummary,
             collectorPerformance = adminWorkload?.collectorPerformance.orEmpty(),
+            expenses = bundle.cashboxWorkload?.expenses.orEmpty(),
+            expenseCategories = bundle.cashboxWorkload?.categories.orEmpty(),
+            cashMovements = bundle.cashboxWorkload?.movements.orEmpty(),
+            cashSummary = bundle.cashboxWorkload?.summary,
+        )
+    }
+
+    fun createExpense(categoryId: Long?, description: String, amountText: String, paymentMethod: String) {
+        val amount = amountText.toDoubleOrNull()
+        if (description.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Escribe una descripción del gasto.") }
+            return
+        }
+        if (amount == null || amount <= 0) {
+            _uiState.update { it.copy(errorMessage = "El monto debe ser mayor que cero.") }
+            return
+        }
+        if (uiState.value.isExpenseSaving) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isExpenseSaving = true, errorMessage = null, successMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.cashboxCreateExpense(categoryId, description.trim(), amount, LocalDate.now().toString(), paymentMethod)
+                    Triple(repository.cashboxExpenses(), repository.cashboxMovements(), repository.cashboxSummary())
+                }
+            }.onSuccess { (expenses, movements, summary) ->
+                _uiState.update {
+                    it.copy(
+                        isExpenseSaving = false,
+                        expenses = expenses,
+                        cashMovements = movements,
+                        cashSummary = summary,
+                        successMessage = "Gasto registrado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isExpenseSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    private fun loadCashboxWorkloadIfAllowed(
+        user: com.sistemaprestamista.mobile.data.model.UserProfile?,
+    ): CashboxWorkload? {
+        val permissions = user?.permissions.orEmpty()
+        val managePortfolio = permissions.contains("collectors.manage") && user?.isCollector != true
+        val isCollector = user?.isCollector == true
+        val canExpenses = permissions.contains("expenses.manage") && !managePortfolio && !isCollector
+        val canCash = permissions.contains("cash.view") && !managePortfolio && !isCollector
+
+        if (!canExpenses && !canCash) {
+            return null
+        }
+
+        return CashboxWorkload(
+            expenses = if (canExpenses) repository.cashboxExpenses() else emptyList(),
+            categories = if (canExpenses) runCatching { repository.cashboxCategories() }.getOrDefault(emptyList()) else emptyList(),
+            movements = if (canCash) repository.cashboxMovements() else emptyList(),
+            summary = if (canCash) runCatching { repository.cashboxSummary() }.getOrNull() else null,
         )
     }
 
@@ -884,6 +951,21 @@ class MainViewModel(
         val dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary,
         val collectorWorkload: CollectorWorkload?,
         val adminWorkload: AdminWorkload?,
+        val cashboxWorkload: CashboxWorkload?,
+    )
+
+    private data class CashboxWorkload(
+        val expenses: List<com.sistemaprestamista.mobile.data.model.ExpenseItem>,
+        val categories: List<com.sistemaprestamista.mobile.data.model.ExpenseCategoryOption>,
+        val movements: List<com.sistemaprestamista.mobile.data.model.CashMovementItem>,
+        val summary: com.sistemaprestamista.mobile.data.model.CashSummary?,
+    )
+
+    private data class RefreshBundle(
+        val dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary,
+        val collectorWorkload: CollectorWorkload?,
+        val adminWorkload: AdminWorkload?,
+        val cashboxWorkload: CashboxWorkload?,
     )
 
     private data class MapLoadResult(

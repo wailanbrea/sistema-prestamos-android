@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -24,8 +25,14 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -48,10 +55,21 @@ internal fun ApprovalsScreen(
     approvals: List<LoanSummary>,
     isActionLoading: Boolean,
     onApprove: (Long) -> Unit,
-    onReject: (Long) -> Unit,
+    onReject: (Long, String?) -> Unit,
     onOpenLoan: (Long) -> Unit,
 ) {
     val currency = rememberCurrency()
+    var rejectLoanId by remember { mutableStateOf<Long?>(null) }
+
+    rejectLoanId?.let { loanId ->
+        RejectReasonDialog(
+            onConfirm = { reason ->
+                onReject(loanId, reason)
+                rejectLoanId = null
+            },
+            onDismiss = { rejectLoanId = null },
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -85,7 +103,7 @@ internal fun ApprovalsScreen(
                     amount = currency.format(loan.principalAmount),
                     isActionLoading = isActionLoading,
                     onApprove = onApprove,
-                    onReject = onReject,
+                    onReject = { rejectLoanId = it },
                     onOpenLoan = onOpenLoan,
                 )
             }
@@ -172,6 +190,36 @@ private fun ApprovalCard(
             }
         }
     }
+}
+
+@Composable
+private fun RejectReasonDialog(
+    onConfirm: (String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var reason by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rechazar préstamo") },
+        text = {
+            OutlinedTextField(
+                value = reason,
+                onValueChange = { reason = it },
+                placeholder = { Text("Motivo (opcional)") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(reason.trim().ifBlank { null }) }) {
+                Text("Rechazar", color = Red, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        },
+    )
 }
 
 @Composable

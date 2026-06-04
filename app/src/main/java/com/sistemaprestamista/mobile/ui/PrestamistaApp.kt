@@ -127,7 +127,8 @@ fun PrestamistaApp(
         onLoadAdminClientDetail = viewModel::loadAdminClientDetail,
         onLoadAdminLoanDetail = viewModel::loadAdminLoanDetail,
         onApproveLoan = viewModel::approveLoan,
-        onRejectLoan = { loanId -> viewModel.rejectLoan(loanId, null) },
+        onRejectLoan = viewModel::rejectLoan,
+        onCreateExpense = viewModel::createExpense,
         onLogout = viewModel::logout,
     )
 }
@@ -156,7 +157,8 @@ private fun AuthenticatedShell(
     onLoadAdminClientDetail: (Long) -> Unit,
     onLoadAdminLoanDetail: (Long) -> Unit,
     onApproveLoan: (Long) -> Unit,
-    onRejectLoan: (Long) -> Unit,
+    onRejectLoan: (Long, String?) -> Unit,
+    onCreateExpense: (Long?, String, String, String) -> Unit,
     onLogout: () -> Unit,
 ) {
     val navController = rememberNavController()
@@ -359,6 +361,22 @@ private fun AuthenticatedShell(
                     AdminReportsScreen(
                         summary = state.reportSummary,
                         collectors = state.collectorPerformance,
+                    )
+                }
+
+                composable(AppDestination.Expenses.route) {
+                    ExpensesScreen(
+                        expenses = state.expenses,
+                        categories = state.expenseCategories,
+                        isSaving = state.isExpenseSaving,
+                        onCreateExpense = onCreateExpense,
+                    )
+                }
+
+                composable(AppDestination.Cash.route) {
+                    CashScreen(
+                        summary = state.cashSummary,
+                        movements = state.cashMovements,
                     )
                 }
 

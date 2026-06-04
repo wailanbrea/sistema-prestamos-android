@@ -370,6 +370,79 @@ class PrestamistaApiClient {
         }
     }
 
+    // --- Caja / Contabilidad ---
+
+    fun cashboxExpenses(token: String): List<com.sistemaprestamista.mobile.data.model.ExpenseItem> {
+        val json = request(path = "cashbox/expenses", method = "GET", token = token)
+        return json.getJSONArray("data").mapObjects(::parseExpense)
+    }
+
+    fun cashboxCategories(token: String): List<com.sistemaprestamista.mobile.data.model.ExpenseCategoryOption> {
+        val json = request(path = "cashbox/expense-categories", method = "GET", token = token)
+        return json.getJSONArray("data").mapObjects { c ->
+            com.sistemaprestamista.mobile.data.model.ExpenseCategoryOption(
+                id = c.getLong("id"),
+                name = c.getString("name"),
+            )
+        }
+    }
+
+    fun cashboxCreateExpense(
+        token: String,
+        categoryId: Long?,
+        description: String,
+        amount: Double,
+        expenseDate: String,
+        paymentMethod: String,
+    ): com.sistemaprestamista.mobile.data.model.ExpenseItem {
+        val payload = JSONObject()
+            .put("description", description)
+            .put("amount", amount)
+            .put("expense_date", expenseDate)
+            .put("payment_method", paymentMethod)
+        if (categoryId != null) {
+            payload.put("category_id", categoryId)
+        }
+        val json = request(path = "cashbox/expenses", method = "POST", token = token, body = payload)
+        return parseExpense(json.getJSONObject("data"))
+    }
+
+    fun cashboxMovements(token: String): List<com.sistemaprestamista.mobile.data.model.CashMovementItem> {
+        val json = request(path = "cashbox/movements", method = "GET", token = token)
+        return json.getJSONArray("data").mapObjects { m ->
+            com.sistemaprestamista.mobile.data.model.CashMovementItem(
+                id = m.getLong("id"),
+                type = m.optString("type"),
+                amount = m.optDouble("amount", 0.0),
+                direction = m.optString("direction"),
+                description = m.nullableString("description"),
+                date = m.nullableString("date"),
+            )
+        }
+    }
+
+    fun cashboxSummary(token: String): com.sistemaprestamista.mobile.data.model.CashSummary {
+        val json = request(path = "cashbox/summary", method = "GET", token = token)
+        val data = json.getJSONObject("data")
+        return com.sistemaprestamista.mobile.data.model.CashSummary(
+            totalIn = data.optDouble("total_in", 0.0),
+            totalOut = data.optDouble("total_out", 0.0),
+            balance = data.optDouble("balance", 0.0),
+        )
+    }
+
+    private fun parseExpense(json: JSONObject): com.sistemaprestamista.mobile.data.model.ExpenseItem {
+        return com.sistemaprestamista.mobile.data.model.ExpenseItem(
+            id = json.getLong("id"),
+            date = json.nullableString("date"),
+            category = json.nullableString("category"),
+            categoryId = json.nullableLong("category_id"),
+            description = json.optString("description"),
+            amount = json.optDouble("amount", 0.0),
+            paymentMethod = json.optString("payment_method"),
+        )
+    }
+
     private fun rangeQuery(dateFrom: String?, dateTo: String?): String {
         return buildList {
             dateFrom?.takeIf { it.isNotBlank() }?.let { add("date_from" to it) }

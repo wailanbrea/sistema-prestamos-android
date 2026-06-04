@@ -300,6 +300,40 @@ data class AdminReportSummary(
     val overdueClients: Int,
 )
 
+/** Un gasto (endpoint cashbox/expenses). */
+data class ExpenseItem(
+    val id: Long,
+    val date: String?,
+    val category: String?,
+    val categoryId: Long?,
+    val description: String,
+    val amount: Double,
+    val paymentMethod: String,
+)
+
+/** Una opción de categoría de gasto (cashbox/expense-categories). */
+data class ExpenseCategoryOption(
+    val id: Long,
+    val name: String,
+)
+
+/** Un movimiento de caja (cashbox/movements). */
+data class CashMovementItem(
+    val id: Long,
+    val type: String,
+    val amount: Double,
+    val direction: String,
+    val description: String?,
+    val date: String?,
+)
+
+/** Totales de caja (cashbox/summary). */
+data class CashSummary(
+    val totalIn: Double,
+    val totalOut: Double,
+    val balance: Double,
+)
+
 /** Una fila del rendimiento por cobrador (endpoint admin/reports/collectors). */
 data class CollectorPerformanceRow(
     val collector: String,

@@ -1,7 +1,11 @@
 package com.sistemaprestamista.mobile.ui
 
 import com.sistemaprestamista.mobile.data.model.AdminReportSummary
+import com.sistemaprestamista.mobile.data.model.CashMovementItem
+import com.sistemaprestamista.mobile.data.model.CashSummary
 import com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow
+import com.sistemaprestamista.mobile.data.model.ExpenseCategoryOption
+import com.sistemaprestamista.mobile.data.model.ExpenseItem
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
@@ -55,6 +59,12 @@ data class AppUiState(
     val reportSummary: AdminReportSummary? = null,
     val collectorPerformance: List<CollectorPerformanceRow> = emptyList(),
     val isApprovalActionLoading: Boolean = false,
+    // Caja / Contabilidad
+    val expenses: List<ExpenseItem> = emptyList(),
+    val expenseCategories: List<ExpenseCategoryOption> = emptyList(),
+    val cashMovements: List<CashMovementItem> = emptyList(),
+    val cashSummary: CashSummary? = null,
+    val isExpenseSaving: Boolean = false,
     val errorMessage: String? = null,
     val successMessage: String? = null,
 ) {
@@ -76,4 +86,12 @@ data class AppUiState(
 
     /** Puede ver reportes/informes. */
     val canViewReports: Boolean = permissions.contains("reports.view")
+
+    /**
+     * Caja: registrar gastos / ver caja. Se limita a roles SIN cartera global
+     * (p. ej. Caja/Contabilidad), para no saturar la barra del administrador
+     * (que gestiona gastos/caja desde la web).
+     */
+    val canManageExpenses: Boolean = permissions.contains("expenses.manage") && !canManagePortfolio && !isCollector
+    val canViewCash: Boolean = permissions.contains("cash.view") && !canManagePortfolio && !isCollector
 }

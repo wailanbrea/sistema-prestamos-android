@@ -77,6 +77,19 @@ class PrestamistaRepository(
     fun adminReportCollectors(dateFrom: String? = null, dateTo: String? = null): List<com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow> =
         apiClient.adminReportCollectors(requiredToken(), dateFrom, dateTo)
 
+    // --- Caja / Contabilidad ---
+
+    fun cashboxExpenses(): List<com.sistemaprestamista.mobile.data.model.ExpenseItem> = apiClient.cashboxExpenses(requiredToken())
+
+    fun cashboxCategories(): List<com.sistemaprestamista.mobile.data.model.ExpenseCategoryOption> = apiClient.cashboxCategories(requiredToken())
+
+    fun cashboxCreateExpense(categoryId: Long?, description: String, amount: Double, expenseDate: String, paymentMethod: String): com.sistemaprestamista.mobile.data.model.ExpenseItem =
+        apiClient.cashboxCreateExpense(requiredToken(), categoryId, description, amount, expenseDate, paymentMethod)
+
+    fun cashboxMovements(): List<com.sistemaprestamista.mobile.data.model.CashMovementItem> = apiClient.cashboxMovements(requiredToken())
+
+    fun cashboxSummary(): com.sistemaprestamista.mobile.data.model.CashSummary = apiClient.cashboxSummary(requiredToken())
+
     fun requestPasswordReset(email: String): String = apiClient.requestPasswordReset(email.trim())
 
     fun resetPassword(

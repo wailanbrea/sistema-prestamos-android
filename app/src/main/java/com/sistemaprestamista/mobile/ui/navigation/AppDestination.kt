@@ -3,6 +3,7 @@ package com.sistemaprestamista.mobile.ui.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Assessment
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.History
@@ -10,6 +11,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.PendingActions
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.sistemaprestamista.mobile.ui.AppUiState
 
@@ -40,6 +42,10 @@ enum class AppDestination(
     LoansAdmin("adminLoans", "Préstamos", Icons.Outlined.AccountBalance, { it.canManagePortfolio }),
     Approvals("approvals", "Aprobar", Icons.Outlined.PendingActions, { it.canApprove }),
     Reports("reports", "Reportes", Icons.Outlined.Assessment, { it.canViewReports }),
+
+    // Caja / Contabilidad.
+    Expenses("cashboxExpenses", "Gastos", Icons.Outlined.Receipt, { it.canManageExpenses }),
+    Cash("cashboxMovements", "Caja", Icons.Outlined.AccountBalanceWallet, { it.canViewCash }),
 
     Profile("profile", "Perfil", Icons.Outlined.Person, { true }),
 }
