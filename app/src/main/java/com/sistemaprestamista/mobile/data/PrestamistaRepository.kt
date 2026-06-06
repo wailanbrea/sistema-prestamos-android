@@ -40,6 +40,8 @@ class PrestamistaRepository(
     fun pendingPayments(): List<PendingPayment> = pendingPaymentStore.allPending()
 
     fun login(email: String, password: String): UserProfile {
+        // Limpia la caché de cualquier sesión previa para no mezclar datos entre cuentas.
+        apiClient.clearCache()
         val result = apiClient.login(
             email = email.trim(),
             password = password,
@@ -51,7 +53,7 @@ class PrestamistaRepository(
         return result.user
     }
 
-    fun me(): UserProfile = apiClient.me(requiredToken())
+    fun me(cacheOnly: Boolean = false): UserProfile = apiClient.me(requiredToken(), cacheOnly)
 
     fun dashboard(): DashboardSummary = apiClient.dashboard(requiredToken())
 
@@ -104,17 +106,17 @@ class PrestamistaRepository(
         passwordConfirmation = passwordConfirmation,
     )
 
-    fun collectorSummary(): CollectorSummary = apiClient.collectorSummary(requiredToken())
+    fun collectorSummary(cacheOnly: Boolean = false): CollectorSummary = apiClient.collectorSummary(requiredToken(), cacheOnly)
 
-    fun collectorClients(): List<ClientSummary> = apiClient.collectorClients(requiredToken())
+    fun collectorClients(cacheOnly: Boolean = false): List<ClientSummary> = apiClient.collectorClients(requiredToken(), cacheOnly)
 
     fun collectorClient(clientId: Long): ClientDetail = apiClient.collectorClient(requiredToken(), clientId)
 
-    fun collectorMapClients(): List<MapClient> = apiClient.collectorMapClients(requiredToken())
+    fun collectorMapClients(cacheOnly: Boolean = false): List<MapClient> = apiClient.collectorMapClients(requiredToken(), cacheOnly)
 
-    fun collectorRoutes(): List<CollectorRoute> = apiClient.collectorRoutes(requiredToken())
+    fun collectorRoutes(cacheOnly: Boolean = false): List<CollectorRoute> = apiClient.collectorRoutes(requiredToken(), cacheOnly)
 
-    fun activeRouteSession(): CollectorRouteSession? = apiClient.activeRouteSession(requiredToken())
+    fun activeRouteSession(cacheOnly: Boolean = false): CollectorRouteSession? = apiClient.activeRouteSession(requiredToken(), cacheOnly)
 
     fun startRouteSession(routeId: Long): CollectorRouteSession = apiClient.startRouteSession(requiredToken(), routeId)
 
@@ -139,18 +141,18 @@ class PrestamistaRepository(
 
     fun drivingRoute(points: List<RoutePoint>): List<RoutePoint> = googleRoutesClient.drivingRoute(points)
 
-    fun collectorLoans(): List<LoanSummary> = apiClient.collectorLoans(requiredToken())
+    fun collectorLoans(cacheOnly: Boolean = false): List<LoanSummary> = apiClient.collectorLoans(requiredToken(), cacheOnly)
 
     fun collectorLoan(loanId: Long): LoanDetail = apiClient.collectorLoan(requiredToken(), loanId)
 
-    fun collectorInstallments(): List<InstallmentSummary> = apiClient.collectorInstallments(requiredToken())
+    fun collectorInstallments(cacheOnly: Boolean = false): List<InstallmentSummary> = apiClient.collectorInstallments(requiredToken(), cacheOnly)
 
     fun collectorInstallment(installmentId: Long): InstallmentDetail {
         return apiClient.collectorInstallment(requiredToken(), installmentId)
     }
 
-    fun collectorPayments(filters: PaymentHistoryFilters = PaymentHistoryFilters()): List<PaymentReceipt> {
-        return apiClient.collectorPayments(requiredToken(), filters)
+    fun collectorPayments(filters: PaymentHistoryFilters = PaymentHistoryFilters(), cacheOnly: Boolean = false): List<PaymentReceipt> {
+        return apiClient.collectorPayments(requiredToken(), filters, cacheOnly)
     }
 
     fun collectorPayment(paymentId: Long): PaymentReceipt = apiClient.collectorPayment(requiredToken(), paymentId)
@@ -258,6 +260,7 @@ class PrestamistaRepository(
             runCatching { apiClient.logout(token) }
         }
         sessionStore.clear()
+        apiClient.clearCache()
     }
 
     private fun sendPendingPayment(pendingPayment: PendingPayment): PaymentReceipt {

@@ -692,6 +692,13 @@ class MainViewModel(
             }
 
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+
+            // Apertura instantánea: pinta la cartera del cobrador desde la caché local (sin red)
+            // mientras se refresca en segundo plano. No bloquea ni reemplaza el refresco real.
+            withContext(Dispatchers.IO) { loadCachedAuthBundleOrNull() }?.let { cached ->
+                _uiState.value = authenticatedState(cached)
+            }
+
             runCatching {
                 withContext(Dispatchers.IO) {
                     val user = repository.me()
@@ -699,16 +706,55 @@ class MainViewModel(
                 }
             }.onSuccess { bundle ->
                 _uiState.value = authenticatedState(bundle)
-            }.onFailure {
-                withContext(Dispatchers.IO) {
-                    repository.logout()
+            }.onFailure { throwable ->
+                val isAuthError = throwable is ApiException && throwable.statusCode == 401
+                if (isAuthError) {
+                    withContext(Dispatchers.IO) { repository.logout() }
+                    _uiState.value = AppUiState(
+                        isLoading = false,
+                        errorMessage = "La sesion guardada expiro. Entra con correo y contrasena.",
+                    )
+                } else {
+                    // Error de red: conserva la sesión y lo ya pintado desde caché.
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            errorMessage = if (it.user == null) {
+                                "Sin conexión. Revisa tu internet e intenta de nuevo."
+                            } else {
+                                null
+                            },
+                        )
+                    }
                 }
-                _uiState.value = AppUiState(
-                    isLoading = false,
-                    errorMessage = "La sesion guardada expiro. Entra con correo y contrasena.",
-                )
             }
         }
+    }
+
+    // Construye un AuthBundle solo desde la caché local (sin red) para el pintado instantáneo.
+    // Devuelve null si no hay caché suficiente (p. ej. primer arranque). Solo cubre al cobrador,
+    // que es quien más necesita ver su cartera al instante y sin conexión en campo.
+    private fun loadCachedAuthBundleOrNull(): AuthBundle? {
+        return runCatching {
+            val user = repository.me(cacheOnly = true)
+            if (user.isCollector != true) return null
+            AuthBundle(
+                user = user,
+                dashboard = null,
+                collectorWorkload = CollectorWorkload(
+                    summary = repository.collectorSummary(cacheOnly = true),
+                    clients = repository.collectorClients(cacheOnly = true),
+                    loans = repository.collectorLoans(cacheOnly = true),
+                    installments = repository.collectorInstallments(cacheOnly = true),
+                    payments = repository.collectorPayments(cacheOnly = true),
+                    mapClients = repository.collectorMapClients(cacheOnly = true),
+                    routes = repository.collectorRoutes(cacheOnly = true),
+                    activeRouteSession = repository.activeRouteSession(cacheOnly = true),
+                ),
+                adminWorkload = null,
+                cashboxWorkload = null,
+            )
+        }.getOrNull()
     }
 
     private fun authenticatedState(bundle: AuthBundle): AppUiState {

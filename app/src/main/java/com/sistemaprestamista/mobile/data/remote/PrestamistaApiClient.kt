@@ -1,6 +1,7 @@
 package com.sistemaprestamista.mobile.data.remote
 
 import com.sistemaprestamista.mobile.BuildConfig
+import com.sistemaprestamista.mobile.data.ResponseCache
 import com.sistemaprestamista.mobile.data.model.AdminReportSummary
 import com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow
 import com.sistemaprestamista.mobile.data.model.Company
@@ -36,11 +37,14 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.logging.HttpLoggingInterceptor
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
-class PrestamistaApiClient {
+class PrestamistaApiClient(
+    private val responseCache: ResponseCache? = null,
+) {
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -76,8 +80,8 @@ class PrestamistaApiClient {
         )
     }
 
-    fun me(token: String): UserProfile {
-        val json = request(path = "me", method = "GET", token = token)
+    fun me(token: String, cacheOnly: Boolean = false): UserProfile {
+        val json = request(path = "me", method = "GET", token = token, cacheOnly = cacheOnly)
         return parseUser(json.getJSONObject("data"))
     }
 
@@ -138,8 +142,8 @@ class PrestamistaApiClient {
         return json.optString("message", "Contrasena restablecida correctamente.")
     }
 
-    fun collectorSummary(token: String): CollectorSummary {
-        val json = request(path = "collector/summary", method = "GET", token = token)
+    fun collectorSummary(token: String, cacheOnly: Boolean = false): CollectorSummary {
+        val json = request(path = "collector/summary", method = "GET", token = token, cacheOnly = cacheOnly)
         val data = json.getJSONObject("data")
         val collector = data.getJSONObject("collector")
         val commissions = data.optJSONObject("commissions") ?: JSONObject()
@@ -158,23 +162,23 @@ class PrestamistaApiClient {
         )
     }
 
-    fun collectorClients(token: String): List<ClientSummary> {
-        val json = request(path = "collector/clients?per_page=100", method = "GET", token = token)
-        return json.getJSONArray("data").mapObjects(::parseClient)
+    fun collectorClients(token: String, cacheOnly: Boolean = false): List<ClientSummary> {
+        val json = request(path = "collector/clients?per_page=100", method = "GET", token = token, cacheOnly = cacheOnly)
+        return json.optJSONArray("data").mapObjects(::parseClient)
     }
 
-    fun collectorMapClients(token: String): List<MapClient> {
-        val json = request(path = "collector/map-clients", method = "GET", token = token)
-        return json.getJSONArray("data").mapObjects(::parseMapClient)
+    fun collectorMapClients(token: String, cacheOnly: Boolean = false): List<MapClient> {
+        val json = request(path = "collector/map-clients", method = "GET", token = token, cacheOnly = cacheOnly)
+        return json.optJSONArray("data").mapObjects(::parseMapClient)
     }
 
-    fun collectorRoutes(token: String): List<CollectorRoute> {
-        val json = request(path = "collector/routes", method = "GET", token = token)
-        return json.getJSONArray("data").mapObjects(::parseRoute)
+    fun collectorRoutes(token: String, cacheOnly: Boolean = false): List<CollectorRoute> {
+        val json = request(path = "collector/routes", method = "GET", token = token, cacheOnly = cacheOnly)
+        return json.optJSONArray("data").mapObjects(::parseRoute)
     }
 
-    fun activeRouteSession(token: String): CollectorRouteSession? {
-        val json = request(path = "collector/route-sessions/active", method = "GET", token = token)
+    fun activeRouteSession(token: String, cacheOnly: Boolean = false): CollectorRouteSession? {
+        val json = request(path = "collector/route-sessions/active", method = "GET", token = token, cacheOnly = cacheOnly)
         val data = json.optJSONObject("data")
         return data?.let(::parseRouteSession)
     }
@@ -233,9 +237,9 @@ class PrestamistaApiClient {
         return parseClientDetail(json.getJSONObject("data"))
     }
 
-    fun collectorLoans(token: String): List<LoanSummary> {
-        val json = request(path = "collector/loans?per_page=100", method = "GET", token = token)
-        return json.getJSONArray("data").mapObjects(::parseLoan)
+    fun collectorLoans(token: String, cacheOnly: Boolean = false): List<LoanSummary> {
+        val json = request(path = "collector/loans?per_page=100", method = "GET", token = token, cacheOnly = cacheOnly)
+        return json.optJSONArray("data").mapObjects(::parseLoan)
     }
 
     fun collectorLoan(token: String, loanId: Long): LoanDetail {
@@ -243,9 +247,9 @@ class PrestamistaApiClient {
         return parseLoanDetail(json.getJSONObject("data"))
     }
 
-    fun collectorInstallments(token: String): List<InstallmentSummary> {
-        val json = request(path = "collector/installments?per_page=100", method = "GET", token = token)
-        return json.getJSONArray("data").mapObjects(::parseInstallment)
+    fun collectorInstallments(token: String, cacheOnly: Boolean = false): List<InstallmentSummary> {
+        val json = request(path = "collector/installments?per_page=100", method = "GET", token = token, cacheOnly = cacheOnly)
+        return json.optJSONArray("data").mapObjects(::parseInstallment)
     }
 
     fun collectorInstallment(token: String, installmentId: Long): InstallmentDetail {
@@ -253,9 +257,9 @@ class PrestamistaApiClient {
         return parseInstallmentDetail(json.getJSONObject("data"))
     }
 
-    fun collectorPayments(token: String, filters: PaymentHistoryFilters = PaymentHistoryFilters()): List<PaymentReceipt> {
-        val json = request(path = "collector/payments?${filters.toQueryString()}", method = "GET", token = token)
-        return json.getJSONArray("data").mapObjects(::parsePayment)
+    fun collectorPayments(token: String, filters: PaymentHistoryFilters = PaymentHistoryFilters(), cacheOnly: Boolean = false): List<PaymentReceipt> {
+        val json = request(path = "collector/payments?${filters.toQueryString()}", method = "GET", token = token, cacheOnly = cacheOnly)
+        return json.optJSONArray("data").mapObjects(::parsePayment)
     }
 
     fun collectorPayment(token: String, paymentId: Long): PaymentReceipt {
@@ -455,12 +459,27 @@ class PrestamistaApiClient {
         }.joinToString("&") { (key, value) -> "${key.urlEncode()}=${value.urlEncode()}" }
     }
 
+    /** Borra la caché de respuestas (al cerrar sesión). */
+    fun clearCache() {
+        responseCache?.clear()
+    }
+
     private fun request(
         path: String,
         method: String,
         token: String?,
         body: JSONObject? = null,
+        cacheOnly: Boolean = false,
     ): JSONObject {
+        // Las respuestas GET se cachean por ruta para soportar lectura offline y pintado instantáneo.
+        val cacheKey = if (method == "GET") path else null
+
+        // Modo solo-caché: la UI pinta lo guardado sin tocar la red (apertura instantánea).
+        if (cacheOnly) {
+            val cached = cacheKey?.let { responseCache?.read(it) }
+            return if (cached.isNullOrBlank()) JSONObject() else JSONObject(cached)
+        }
+
         val requestBuilder = Request.Builder()
             .url(BuildConfig.API_BASE_URL + path)
             .header("Accept", "application/json")
@@ -475,18 +494,33 @@ class PrestamistaApiClient {
             else -> error("Unsupported HTTP method $method")
         }
 
-        client.newCall(request).execute().use { response ->
-            val rawBody = response.body.string()
-            val json = if (rawBody.isBlank()) JSONObject() else JSONObject(rawBody)
+        try {
+            client.newCall(request).execute().use { response ->
+                val rawBody = response.body.string()
+                val json = if (rawBody.isBlank()) JSONObject() else JSONObject(rawBody)
 
-            if (!response.isSuccessful) {
-                throw ApiException(
-                    message = json.optString("message", "Error de comunicación con el servidor."),
-                    statusCode = response.code,
-                )
+                if (!response.isSuccessful) {
+                    throw ApiException(
+                        message = json.optString("message", "Error de comunicación con el servidor."),
+                        statusCode = response.code,
+                    )
+                }
+
+                if (cacheKey != null) {
+                    responseCache?.write(cacheKey, rawBody)
+                }
+
+                return json
             }
-
-            return json
+        } catch (exception: IOException) {
+            // Sin conexión / timeout: si hay respuesta en caché para este GET, se sirve.
+            if (cacheKey != null) {
+                val cached = responseCache?.read(cacheKey)
+                if (!cached.isNullOrBlank()) {
+                    return JSONObject(cached)
+                }
+            }
+            throw exception
         }
     }
 
