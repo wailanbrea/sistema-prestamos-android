@@ -44,6 +44,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -105,9 +106,18 @@ internal fun ReceiptDetailScreen(
     ) { granted ->
         if (granted) {
             printers = bluetoothPrinter.pairedPrinters()
-            selectedPrinter = printers.firstOrNull()
+            selectedPrinter = selectedPrinter ?: printers.firstOrNull()
         } else {
             printMessage = "Permiso Bluetooth denegado."
+        }
+    }
+
+    // Auto-cargar impresoras vinculadas al abrir el recibo (si ya hay permiso)
+    // sin sobreescribir la impresora guardada por el usuario.
+    LaunchedEffect(Unit) {
+        if (bluetoothPrinter.hasConnectPermission()) {
+            printers = bluetoothPrinter.pairedPrinters()
+            selectedPrinter = selectedPrinter ?: printers.firstOrNull()
         }
     }
 
@@ -206,7 +216,7 @@ internal fun ReceiptDetailScreen(
                     bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
                 } else {
                     printers = bluetoothPrinter.pairedPrinters()
-                    selectedPrinter = printers.firstOrNull()
+                    selectedPrinter = selectedPrinter ?: printers.firstOrNull()
 
                     if (printers.isEmpty()) {
                         printMessage = "No hay impresoras Bluetooth vinculadas."

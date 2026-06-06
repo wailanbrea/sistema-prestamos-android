@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import com.sistemaprestamista.mobile.data.model.ClientSummary
@@ -64,6 +65,20 @@ internal fun PrintSettingsScreen(
             message = "Permiso Bluetooth denegado."
         }
     }
+
+    // Auto-cargar las impresoras vinculadas al abrir la pantalla (si ya hay permiso)
+    // y conservar la impresora guardada como seleccionada para reconocerla automáticamente.
+    LaunchedEffect(Unit) {
+        if (bluetoothPrinter.hasConnectPermission()) {
+            printers = bluetoothPrinter.pairedPrinters()
+            selectedPrinter = selectedPrinter ?: printers.firstOrNull()
+        }
+    }
+
+    // ¿La impresora guardada está vinculada actualmente? (reconocida/lista para imprimir)
+    val isSelectedRecognized = selectedPrinter?.let { saved ->
+        printers.any { it.address == saved.address }
+    } ?: false
 
     Column(
         modifier = Modifier
@@ -135,10 +150,14 @@ internal fun PrintSettingsScreen(
 
                 Text("Impresora Bluetooth", fontWeight = FontWeight.Bold)
 
-                Text(
-                    selectedPrinter?.let { "Actual: ${it.name}" }
-                        ?: "No hay impresora seleccionada"
-                )
+                selectedPrinter?.let { printer ->
+                    Text("Predeterminada: ${printer.name}", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (isSelectedRecognized) "Conectada y lista para imprimir"
+                        else "Guardada — se reconocerá al imprimir",
+                        color = if (isSelectedRecognized) Success else WarningText,
+                    )
+                } ?: Text("No hay impresora seleccionada")
 
                 Spacer(Modifier.height(10.dp))
 
@@ -150,8 +169,11 @@ internal fun PrintSettingsScreen(
                             permissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
                         } else {
                             printers = bluetoothPrinter.pairedPrinters()
-                            if (printers.isEmpty()) {
-                                message = "No hay impresoras vinculadas."
+                            selectedPrinter = selectedPrinter ?: printers.firstOrNull()
+                            message = if (printers.isEmpty()) {
+                                "No hay impresoras vinculadas. Vincula la impresora desde los ajustes Bluetooth del teléfono."
+                            } else {
+                                "Toca una impresora para guardarla como predeterminada."
                             }
                         }
                     },
@@ -163,24 +185,38 @@ internal fun PrintSettingsScreen(
                 Spacer(Modifier.height(10.dp))
 
                 printers.forEach { printer ->
+                    val isSelected = selectedPrinter?.address == printer.address
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
+                            .clickable {
+                                selectedPrinter = printer
+                                printSettingsStore.savePrinter(printer, selectedPaper)
+                                message = "Impresora predeterminada: ${printer.name}"
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) Color(0xFFE8F1FB) else Color.White
+                        ),
                     ) {
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row {
-                                Icon(Icons.Outlined.Bluetooth, null)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Outlined.Bluetooth,
+                                    null,
+                                    tint = if (isSelected) Primary else Color.Gray
+                                )
                                 Spacer(Modifier.width(8.dp))
-                                Text(printer.name)
+                                Text(printer.name, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                             }
 
-                            if (selectedPrinter?.address == printer.address) {
+                            if (isSelected) {
                                 Icon(Icons.Outlined.Check, null, tint = Success)
                             }
                         }
