@@ -10,6 +10,8 @@ import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.RoutePoint
 import com.sistemaprestamista.mobile.data.remote.ApiException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,13 +49,7 @@ class MainViewModel(
             runCatching {
                 withContext(Dispatchers.IO) {
                     val user = repository.login(normalizedEmail, password)
-                    AuthBundle(
-                        user = user,
-                        dashboard = loadDashboardIfAllowed(user),
-                        collectorWorkload = loadCollectorWorkloadIfAllowed(user),
-                        adminWorkload = loadAdminWorkloadIfAllowed(user),
-                        cashboxWorkload = loadCashboxWorkloadIfAllowed(user),
-                    )
+                    loadAuthBundle(user)
                 }
             }.onSuccess { bundle ->
                 _uiState.value = authenticatedState(bundle)
@@ -126,11 +122,18 @@ class MainViewModel(
                 withContext(Dispatchers.IO) {
                     repository.syncPendingPayments()
                     val currentUser = uiState.value.user
-                    val dashboard = loadDashboardIfAllowed(currentUser)
-                    val collectorWorkload = loadCollectorWorkloadIfAllowed(currentUser)
-                    val adminWorkload = loadAdminWorkloadIfAllowed(currentUser)
-                    val cashboxWorkload = loadCashboxWorkloadIfAllowed(currentUser)
-                    RefreshBundle(dashboard, collectorWorkload, adminWorkload, cashboxWorkload)
+                    coroutineScope {
+                        val dashboard = async { loadDashboardIfAllowed(currentUser) }
+                        val collectorWorkload = async { loadCollectorWorkloadIfAllowed(currentUser) }
+                        val adminWorkload = async { loadAdminWorkloadIfAllowed(currentUser) }
+                        val cashboxWorkload = async { loadCashboxWorkloadIfAllowed(currentUser) }
+                        RefreshBundle(
+                            dashboard.await(),
+                            collectorWorkload.await(),
+                            adminWorkload.await(),
+                            cashboxWorkload.await(),
+                        )
+                    }
                 }
             }.onSuccess { (dashboard, collectorWorkload, adminWorkload, cashboxWorkload) ->
                 _uiState.update {
@@ -188,9 +191,28 @@ class MainViewModel(
                     )
                     when (result) {
                         is PaymentRegistrationResult.Sent -> {
-                            val dashboard = loadDashboardIfAllowed(uiState.value.user)
-                            val collectorWorkload = loadCollectorWorkloadIfAllowed(uiState.value.user)
-                            PaymentRegistrationOutcome.Sent(result.receipt, dashboard, collectorWorkload)
+                            // Refresco selectivo: un pago solo afecta totales del cobrador, el
+                            // préstamo cobrado (saldo), sus cuotas y el historial. Recargamos
+                            // únicamente eso en paralelo y reutilizamos el resto de la cartera
+                            // (clientes, mapa, rutas, sesión) en vez de recargar todo el workload.
+                            val current = uiState.value
+                            val collectorWorkload = coroutineScope {
+                                val summary = async(Dispatchers.IO) { repository.collectorSummary() }
+                                val loans = async(Dispatchers.IO) { repository.collectorLoans() }
+                                val installments = async(Dispatchers.IO) { repository.collectorInstallments() }
+                                val payments = async(Dispatchers.IO) { repository.collectorPayments() }
+                                CollectorWorkload(
+                                    summary = summary.await(),
+                                    clients = current.collectorClients,
+                                    loans = loans.await(),
+                                    installments = installments.await(),
+                                    payments = payments.await(),
+                                    mapClients = current.mapClients,
+                                    routes = current.collectorRoutes,
+                                    activeRouteSession = current.activeRouteSession,
+                                )
+                            }
+                            PaymentRegistrationOutcome.Sent(result.receipt, null, collectorWorkload)
                         }
                         is PaymentRegistrationResult.Queued -> PaymentRegistrationOutcome.Queued(result.pendingCount)
                     }
@@ -673,13 +695,7 @@ class MainViewModel(
             runCatching {
                 withContext(Dispatchers.IO) {
                     val user = repository.me()
-                    AuthBundle(
-                        user = user,
-                        dashboard = loadDashboardIfAllowed(user),
-                        collectorWorkload = loadCollectorWorkloadIfAllowed(user),
-                        adminWorkload = loadAdminWorkloadIfAllowed(user),
-                        cashboxWorkload = loadCashboxWorkloadIfAllowed(user),
-                    )
+                    loadAuthBundle(user)
                 }
             }.onSuccess { bundle ->
                 _uiState.value = authenticatedState(bundle)
@@ -761,9 +777,9 @@ class MainViewModel(
         }
     }
 
-    private fun loadCashboxWorkloadIfAllowed(
+    private suspend fun loadCashboxWorkloadIfAllowed(
         user: com.sistemaprestamista.mobile.data.model.UserProfile?,
-    ): CashboxWorkload? {
+    ): CashboxWorkload? = coroutineScope {
         val permissions = user?.permissions.orEmpty()
         val managePortfolio = permissions.contains("collectors.manage") && user?.isCollector != true
         val isCollector = user?.isCollector == true
@@ -771,14 +787,20 @@ class MainViewModel(
         val canCash = permissions.contains("cash.view") && !managePortfolio && !isCollector
 
         if (!canExpenses && !canCash) {
-            return null
+            return@coroutineScope null
         }
 
-        return CashboxWorkload(
-            expenses = if (canExpenses) repository.cashboxExpenses() else emptyList(),
-            categories = if (canExpenses) runCatching { repository.cashboxCategories() }.getOrDefault(emptyList()) else emptyList(),
-            movements = if (canCash) repository.cashboxMovements() else emptyList(),
-            summary = if (canCash) runCatching { repository.cashboxSummary() }.getOrNull() else null,
+        // Peticiones independientes lanzadas en paralelo.
+        val expenses = async(Dispatchers.IO) { if (canExpenses) repository.cashboxExpenses() else emptyList() }
+        val categories = async(Dispatchers.IO) { if (canExpenses) runCatching { repository.cashboxCategories() }.getOrDefault(emptyList()) else emptyList() }
+        val movements = async(Dispatchers.IO) { if (canCash) repository.cashboxMovements() else emptyList() }
+        val summary = async(Dispatchers.IO) { if (canCash) runCatching { repository.cashboxSummary() }.getOrNull() else null }
+
+        CashboxWorkload(
+            expenses = expenses.await(),
+            categories = categories.await(),
+            movements = movements.await(),
+            summary = summary.await(),
         )
     }
 
@@ -853,24 +875,31 @@ class MainViewModel(
         }
     }
 
-    private fun loadAdminWorkloadIfAllowed(
+    private suspend fun loadAdminWorkloadIfAllowed(
         user: com.sistemaprestamista.mobile.data.model.UserProfile?,
-    ): AdminWorkload? {
+    ): AdminWorkload? = coroutineScope {
         val permissions = user?.permissions.orEmpty()
         val managePortfolio = permissions.contains("collectors.manage") && user?.isCollector != true
         val canApprove = permissions.contains("loans.approve")
         val canViewReports = permissions.contains("reports.view")
 
         if (!managePortfolio && !canApprove && !canViewReports) {
-            return null
+            return@coroutineScope null
         }
 
-        return AdminWorkload(
-            clients = if (managePortfolio) repository.adminClients() else emptyList(),
-            loans = if (managePortfolio) repository.adminLoans() else emptyList(),
-            approvals = if (canApprove) repository.adminApprovals() else emptyList(),
-            reportSummary = if (canViewReports) runCatching { repository.adminReportSummary() }.getOrNull() else null,
-            collectorPerformance = if (canViewReports) runCatching { repository.adminReportCollectors() }.getOrNull().orEmpty() else emptyList(),
+        // Peticiones independientes lanzadas en paralelo.
+        val clients = async(Dispatchers.IO) { if (managePortfolio) repository.adminClients() else emptyList() }
+        val loans = async(Dispatchers.IO) { if (managePortfolio) repository.adminLoans() else emptyList() }
+        val approvals = async(Dispatchers.IO) { if (canApprove) repository.adminApprovals() else emptyList() }
+        val reportSummary = async(Dispatchers.IO) { if (canViewReports) runCatching { repository.adminReportSummary() }.getOrNull() else null }
+        val collectorPerformance = async(Dispatchers.IO) { if (canViewReports) runCatching { repository.adminReportCollectors() }.getOrNull().orEmpty() else emptyList() }
+
+        AdminWorkload(
+            clients = clients.await(),
+            loans = loans.await(),
+            approvals = approvals.await(),
+            reportSummary = reportSummary.await(),
+            collectorPerformance = collectorPerformance.await(),
         )
     }
 
@@ -913,24 +942,53 @@ class MainViewModel(
         return email.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches()
     }
 
-    private fun loadCollectorWorkloadIfAllowed(
+    private suspend fun loadCollectorWorkloadIfAllowed(
         user: com.sistemaprestamista.mobile.data.model.UserProfile?,
-    ): CollectorWorkload? {
+    ): CollectorWorkload? = coroutineScope {
         // Solo carga la cartera de campo si el usuario es un cobrador real (flag del backend),
         // no por tener el permiso payments.create (que el Administrador también tiene).
         if (user?.isCollector != true) {
-            return null
+            return@coroutineScope null
         }
 
-        return CollectorWorkload(
-            summary = repository.collectorSummary(),
-            clients = repository.collectorClients(),
-            loans = repository.collectorLoans(),
-            installments = repository.collectorInstallments(),
-            payments = repository.collectorPayments(),
-            mapClients = repository.collectorMapClients(),
-            routes = repository.collectorRoutes(),
-            activeRouteSession = repository.activeRouteSession(),
+        // Las 8 peticiones son independientes: se lanzan en paralelo para acelerar el arranque.
+        val summary = async(Dispatchers.IO) { repository.collectorSummary() }
+        val clients = async(Dispatchers.IO) { repository.collectorClients() }
+        val loans = async(Dispatchers.IO) { repository.collectorLoans() }
+        val installments = async(Dispatchers.IO) { repository.collectorInstallments() }
+        val payments = async(Dispatchers.IO) { repository.collectorPayments() }
+        val mapClients = async(Dispatchers.IO) { repository.collectorMapClients() }
+        val routes = async(Dispatchers.IO) { repository.collectorRoutes() }
+        val activeRouteSession = async(Dispatchers.IO) { repository.activeRouteSession() }
+
+        CollectorWorkload(
+            summary = summary.await(),
+            clients = clients.await(),
+            loans = loans.await(),
+            installments = installments.await(),
+            payments = payments.await(),
+            mapClients = mapClients.await(),
+            routes = routes.await(),
+            activeRouteSession = activeRouteSession.await(),
+        )
+    }
+
+    // Carga las cuatro áreas (dashboard, cobrador, admin, caja) en paralelo. Solo la del
+    // rol activo hace trabajo real; las demás devuelven null al instante.
+    private suspend fun loadAuthBundle(
+        user: com.sistemaprestamista.mobile.data.model.UserProfile,
+    ): AuthBundle = coroutineScope {
+        val dashboard = async { loadDashboardIfAllowed(user) }
+        val collectorWorkload = async { loadCollectorWorkloadIfAllowed(user) }
+        val adminWorkload = async { loadAdminWorkloadIfAllowed(user) }
+        val cashboxWorkload = async { loadCashboxWorkloadIfAllowed(user) }
+
+        AuthBundle(
+            user = user,
+            dashboard = dashboard.await(),
+            collectorWorkload = collectorWorkload.await(),
+            adminWorkload = adminWorkload.await(),
+            cashboxWorkload = cashboxWorkload.await(),
         )
     }
 
