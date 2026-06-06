@@ -65,6 +65,9 @@ class PrestamistaRepository(
 
     fun adminLoans(status: String? = null, search: String? = null): List<LoanSummary> = apiClient.adminLoans(requiredToken(), status, search)
 
+    fun adminLoansPage(page: Int, status: String? = null, search: String? = null): com.sistemaprestamista.mobile.data.model.Page<LoanSummary> =
+        apiClient.adminLoansPage(requiredToken(), page, status, search)
+
     fun adminLoan(loanId: Long): LoanDetail = apiClient.adminLoan(requiredToken(), loanId)
 
     fun adminApprovals(): List<LoanSummary> = apiClient.adminApprovals(requiredToken())

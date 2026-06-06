@@ -23,6 +23,7 @@ import com.sistemaprestamista.mobile.data.model.LoanFinancialSummary
 import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.LoginResult
 import com.sistemaprestamista.mobile.data.model.MapClient
+import com.sistemaprestamista.mobile.data.model.Page
 import com.sistemaprestamista.mobile.data.model.PaymentDetailLine
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentCommission
@@ -315,7 +316,30 @@ class PrestamistaApiClient(
             search?.takeIf { it.isNotBlank() }?.let { append("&search=").append(it.urlEncode()) }
         }
         val json = request(path = "admin/loans?$query", method = "GET", token = token)
-        return json.getJSONArray("data").mapObjects(::parseLoan)
+        return json.optJSONArray("data").mapObjects(::parseLoan)
+    }
+
+    /** Variante paginada de la cartera de préstamos para carga incremental ("cargar más"). */
+    fun adminLoansPage(
+        token: String,
+        page: Int,
+        status: String? = null,
+        search: String? = null,
+        perPage: Int = 50,
+    ): Page<LoanSummary> {
+        val query = buildString {
+            append("per_page=").append(perPage)
+            append("&page=").append(page)
+            status?.takeIf { it.isNotBlank() }?.let { append("&status=").append(it.urlEncode()) }
+            search?.takeIf { it.isNotBlank() }?.let { append("&search=").append(it.urlEncode()) }
+        }
+        val json = request(path = "admin/loans?$query", method = "GET", token = token)
+        val meta = json.optJSONObject("meta")
+        return Page(
+            items = json.optJSONArray("data").mapObjects(::parseLoan),
+            currentPage = meta?.optInt("current_page", page) ?: page,
+            lastPage = meta?.optInt("last_page", page) ?: page,
+        )
     }
 
     fun adminLoan(token: String, loanId: Long): LoanDetail {

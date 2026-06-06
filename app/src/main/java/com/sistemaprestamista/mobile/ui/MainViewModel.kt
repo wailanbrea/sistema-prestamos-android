@@ -150,6 +150,8 @@ class MainViewModel(
                         activeRouteSession = collectorWorkload?.activeRouteSession ?: it.activeRouteSession,
                         adminClients = adminWorkload?.clients ?: it.adminClients,
                         adminLoans = adminWorkload?.loans ?: it.adminLoans,
+                        adminLoansHasMore = adminWorkload?.loansHasMore ?: it.adminLoansHasMore,
+                        adminLoansLoadedPage = if (adminWorkload != null) 1 else it.adminLoansLoadedPage,
                         pendingApprovals = adminWorkload?.approvals ?: it.pendingApprovals,
                         reportSummary = adminWorkload?.reportSummary ?: it.reportSummary,
                         collectorPerformance = adminWorkload?.collectorPerformance ?: it.collectorPerformance,
@@ -778,6 +780,8 @@ class MainViewModel(
             activeRouteSession = collectorWorkload?.activeRouteSession,
             adminClients = adminWorkload?.clients.orEmpty(),
             adminLoans = adminWorkload?.loans.orEmpty(),
+            adminLoansHasMore = adminWorkload?.loansHasMore ?: false,
+            adminLoansLoadedPage = 1,
             pendingApprovals = adminWorkload?.approvals.orEmpty(),
             reportSummary = adminWorkload?.reportSummary,
             collectorPerformance = adminWorkload?.collectorPerformance.orEmpty(),
@@ -921,6 +925,32 @@ class MainViewModel(
         }
     }
 
+    /** Trae la siguiente página de la cartera de préstamos (admin) y la agrega a la lista. */
+    fun loadMoreAdminLoans() {
+        val state = uiState.value
+        if (state.isLoadingMoreAdminLoans || !state.adminLoansHasMore) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingMoreAdminLoans = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminLoansPage(state.adminLoansLoadedPage + 1) }
+            }.onSuccess { page ->
+                _uiState.update { current ->
+                    val existingIds = current.adminLoans.mapTo(HashSet()) { it.id }
+                    val merged = current.adminLoans + page.items.filter { it.id !in existingIds }
+                    current.copy(
+                        isLoadingMoreAdminLoans = false,
+                        adminLoans = merged,
+                        adminLoansLoadedPage = page.currentPage,
+                        adminLoansHasMore = page.hasMore,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isLoadingMoreAdminLoans = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
     private suspend fun loadAdminWorkloadIfAllowed(
         user: com.sistemaprestamista.mobile.data.model.UserProfile?,
     ): AdminWorkload? = coroutineScope {
@@ -935,14 +965,18 @@ class MainViewModel(
 
         // Peticiones independientes lanzadas en paralelo.
         val clients = async(Dispatchers.IO) { if (managePortfolio) repository.adminClients() else emptyList() }
-        val loans = async(Dispatchers.IO) { if (managePortfolio) repository.adminLoans() else emptyList() }
+        // Cartera de préstamos paginada: solo la primera página al inicio (arranque rápido);
+        // el resto se trae bajo demanda con "Cargar más" (loadMoreAdminLoans).
+        val loansPage = async(Dispatchers.IO) { if (managePortfolio) repository.adminLoansPage(1) else null }
         val approvals = async(Dispatchers.IO) { if (canApprove) repository.adminApprovals() else emptyList() }
         val reportSummary = async(Dispatchers.IO) { if (canViewReports) runCatching { repository.adminReportSummary() }.getOrNull() else null }
         val collectorPerformance = async(Dispatchers.IO) { if (canViewReports) runCatching { repository.adminReportCollectors() }.getOrNull().orEmpty() else emptyList() }
 
+        val page = loansPage.await()
         AdminWorkload(
             clients = clients.await(),
-            loans = loans.await(),
+            loans = page?.items.orEmpty(),
+            loansHasMore = page?.hasMore ?: false,
             approvals = approvals.await(),
             reportSummary = reportSummary.await(),
             collectorPerformance = collectorPerformance.await(),
@@ -1183,6 +1217,7 @@ class MainViewModel(
     private data class AdminWorkload(
         val clients: List<com.sistemaprestamista.mobile.data.model.ClientSummary>,
         val loans: List<com.sistemaprestamista.mobile.data.model.LoanSummary>,
+        val loansHasMore: Boolean,
         val approvals: List<com.sistemaprestamista.mobile.data.model.LoanSummary>,
         val reportSummary: com.sistemaprestamista.mobile.data.model.AdminReportSummary?,
         val collectorPerformance: List<com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow>,

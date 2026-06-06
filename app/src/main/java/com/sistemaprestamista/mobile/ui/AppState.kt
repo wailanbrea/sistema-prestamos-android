@@ -56,6 +56,9 @@ data class AppUiState(
     // Back-office / administrador
     val adminClients: List<ClientSummary> = emptyList(),
     val adminLoans: List<LoanSummary> = emptyList(),
+    val adminLoansHasMore: Boolean = false,
+    val adminLoansLoadedPage: Int = 1,
+    val isLoadingMoreAdminLoans: Boolean = false,
     val pendingApprovals: List<LoanSummary> = emptyList(),
     val reportSummary: AdminReportSummary? = null,
     val collectorPerformance: List<CollectorPerformanceRow> = emptyList(),

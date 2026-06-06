@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -17,8 +18,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -49,6 +52,9 @@ private val Outline = Color(0xFF737781)
 internal fun AdminLoansScreen(
     loans: List<LoanSummary>,
     onOpenLoan: (Long) -> Unit,
+    hasMore: Boolean = false,
+    isLoadingMore: Boolean = false,
+    onLoadMore: () -> Unit = {},
 ) {
     var query by remember { mutableStateOf("") }
     val currency = rememberCurrency()
@@ -114,6 +120,23 @@ internal fun AdminLoansScreen(
         } else {
             items(filtered, key = { it.id }) { loan ->
                 LoanRowCard(loan = loan, amount = currency.format(loan.remainingBalance), onOpenLoan = onOpenLoan)
+            }
+        }
+
+        if (hasMore) {
+            item {
+                OutlinedButton(
+                    onClick = onLoadMore,
+                    enabled = !isLoadingMore,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    if (isLoadingMore) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Primary)
+                    } else {
+                        Text("Cargar más", fontWeight = FontWeight.Bold, color = Primary)
+                    }
+                }
             }
         }
     }

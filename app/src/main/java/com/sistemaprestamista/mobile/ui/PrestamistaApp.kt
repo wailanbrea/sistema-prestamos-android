@@ -126,6 +126,7 @@ fun PrestamistaApp(
         onDiscardPendingPayment = viewModel::discardPendingPayment,
         onLoadAdminClientDetail = viewModel::loadAdminClientDetail,
         onLoadAdminLoanDetail = viewModel::loadAdminLoanDetail,
+        onLoadMoreAdminLoans = viewModel::loadMoreAdminLoans,
         onApproveLoan = viewModel::approveLoan,
         onRejectLoan = viewModel::rejectLoan,
         onCreateExpense = viewModel::createExpense,
@@ -156,6 +157,7 @@ private fun AuthenticatedShell(
     onDiscardPendingPayment: (String) -> Unit,
     onLoadAdminClientDetail: (Long) -> Unit,
     onLoadAdminLoanDetail: (Long) -> Unit,
+    onLoadMoreAdminLoans: () -> Unit,
     onApproveLoan: (Long) -> Unit,
     onRejectLoan: (Long, String?) -> Unit,
     onCreateExpense: (Long?, String, String, String) -> Unit,
@@ -343,6 +345,9 @@ private fun AuthenticatedShell(
                         onOpenLoan = { loanId ->
                             navController.navigate(AppRoutes.adminLoanDetail(loanId))
                         },
+                        hasMore = state.adminLoansHasMore,
+                        isLoadingMore = state.isLoadingMoreAdminLoans,
+                        onLoadMore = onLoadMoreAdminLoans,
                     )
                 }
 
