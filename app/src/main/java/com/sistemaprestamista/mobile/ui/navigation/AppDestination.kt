@@ -10,6 +10,7 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.PendingActions
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -40,6 +41,7 @@ enum class AppDestination(
     // Back-office (cartera global y supervisión).
     ClientsAdmin("adminClients", "Clientes", Icons.Outlined.Groups, { it.canManagePortfolio }),
     LoansAdmin("adminLoans", "Préstamos", Icons.Outlined.AccountBalance, { it.canManagePortfolio }),
+    CollectorsAdmin("adminCollectors", "Cobradores", Icons.Outlined.People, { it.canManagePortfolio }),
     Approvals("approvals", "Aprobar", Icons.Outlined.PendingActions, { it.canApprove }),
     Reports("reports", "Reportes", Icons.Outlined.Assessment, { it.canViewReports }),
 
@@ -59,6 +61,11 @@ object AppRoutes {
     const val AdminClientCreate = "admin/client-create"
     const val AdminLoanCreate = "admin/loan-create"
     const val AdminLoanEdit = "admin/loan-edit/{loanId}"
+    const val AdminClientEdit = "admin/client-edit/{clientId}"
+    const val AdminCollectors = "admin/collectors"
+    const val AdminCollectorCreate = "admin/collector-create"
+    const val AdminCollectorDetail = "admin/collectors/{collectorId}"
+    const val AdminCollectorEdit = "admin/collector-edit/{collectorId}"
     const val AdminQuotes = "admin/quotes"
     const val AdminQuoteCreate = "admin/quote-create"
     const val AdminQuoteDetail = "admin/quote/{quoteId}"
@@ -77,6 +84,12 @@ object AppRoutes {
     fun adminLoanDetail(loanId: Long): String = "admin/loans/$loanId"
 
     fun adminLoanEdit(loanId: Long): String = "admin/loan-edit/$loanId"
+
+    fun adminClientEdit(clientId: Long): String = "admin/client-edit/$clientId"
+
+    fun adminCollectorDetail(collectorId: Long): String = "admin/collectors/$collectorId"
+
+    fun adminCollectorEdit(collectorId: Long): String = "admin/collector-edit/$collectorId"
 
     fun adminQuoteDetail(quoteId: Long): String = "admin/quote/$quoteId"
 }

@@ -1,8 +1,11 @@
 package com.sistemaprestamista.mobile.data
 
 import android.content.Context
+import com.sistemaprestamista.mobile.data.model.CashMovementInput
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
+import com.sistemaprestamista.mobile.data.model.CollectorDetail
+import com.sistemaprestamista.mobile.data.model.CollectorCommissionItem
 import com.sistemaprestamista.mobile.data.model.CollectorOption
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
 import com.sistemaprestamista.mobile.data.model.CollectorRoute
@@ -13,7 +16,10 @@ import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.ClientRegistrationLink
+import com.sistemaprestamista.mobile.data.model.NewCollectorInput
 import com.sistemaprestamista.mobile.data.model.NewLoanInput
+import com.sistemaprestamista.mobile.data.model.UpdateClientInput
+import com.sistemaprestamista.mobile.data.model.UpdateCollectorInput
 import com.sistemaprestamista.mobile.data.model.UpdateLoanInput
 import com.sistemaprestamista.mobile.data.model.MapClient
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
@@ -263,6 +269,31 @@ class PrestamistaRepository(
     fun adminQuote(quoteId: Long): com.sistemaprestamista.mobile.data.model.LoanQuote = apiClient.adminQuote(requiredToken(), quoteId)
 
     fun adminDeleteQuote(quoteId: Long) = apiClient.adminDeleteQuote(requiredToken(), quoteId)
+
+    fun adminUpdateClient(clientId: Long, input: UpdateClientInput): ClientDetail =
+        apiClient.adminUpdateClient(requiredToken(), clientId, input)
+
+    fun adminDeleteClient(clientId: Long) = apiClient.adminDeleteClient(requiredToken(), clientId)
+
+    fun adminDeleteLoan(loanId: Long) = apiClient.adminDeleteLoan(requiredToken(), loanId)
+
+    fun adminCancelPayment(paymentId: Long, reason: String): PaymentReceipt =
+        apiClient.adminCancelPayment(requiredToken(), paymentId, reason)
+
+    fun adminCreateCollector(input: NewCollectorInput): CollectorDetail =
+        apiClient.adminCreateCollector(requiredToken(), input)
+
+    fun adminCollectorDetail(collectorId: Long): CollectorDetail =
+        apiClient.adminCollectorDetail(requiredToken(), collectorId)
+
+    fun adminUpdateCollector(collectorId: Long, input: UpdateCollectorInput): CollectorDetail =
+        apiClient.adminUpdateCollector(requiredToken(), collectorId, input)
+
+    fun adminPayCommission(collectorId: Long, commissionId: Long): CollectorCommissionItem =
+        apiClient.adminPayCommission(requiredToken(), collectorId, commissionId)
+
+    fun adminStoreMovement(input: CashMovementInput) =
+        apiClient.adminStoreMovement(requiredToken(), input)
 
     fun syncPendingPayments(): PendingPaymentSyncResult {
         if (!hasSavedSession()) {

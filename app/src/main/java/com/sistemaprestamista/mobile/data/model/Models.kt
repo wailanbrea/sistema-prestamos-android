@@ -452,6 +452,88 @@ data class QuoteInstallment(
     val amount: Double,
 )
 
+/** Datos del formulario de edición de cliente. */
+data class UpdateClientInput(
+    val fullName: String,
+    val identification: String? = null,
+    val phone: String? = null,
+    val secondaryPhone: String? = null,
+    val email: String? = null,
+    val address: String,
+    val locationReference: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val workplace: String? = null,
+    val workplacePhone: String? = null,
+    val monthlyIncome: Double? = null,
+    val status: String = "active",
+    val riskLevel: String = "low",
+    val notes: String? = null,
+)
+
+/** Una comisión pendiente o pagada del cobrador. */
+data class CollectorCommissionItem(
+    val id: Long,
+    val commissionType: String,
+    val commissionValue: Double,
+    val baseAmount: Double,
+    val commissionAmount: Double,
+    val status: String,
+    val paidAt: String?,
+    val receiptNumber: String?,
+)
+
+data class CollectorCommissionSummary(
+    val totalGenerated: Double,
+    val totalPending: Double,
+    val totalPaid: Double,
+)
+
+data class CollectorStats(
+    val activeLoans: Int,
+    val lateLoans: Int,
+)
+
+/** Detalle completo de cobrador con comisiones. */
+data class CollectorDetail(
+    val id: Long,
+    val name: String,
+    val phone: String?,
+    val commissionType: String,
+    val commissionBase: String,
+    val commissionValue: Double,
+    val status: String,
+    val commissionSummary: CollectorCommissionSummary,
+    val pendingCommissions: List<CollectorCommissionItem>,
+    val stats: CollectorStats = CollectorStats(0, 0),
+)
+
+data class NewCollectorInput(
+    val name: String,
+    val phone: String? = null,
+    val commissionType: String,
+    val commissionBase: String,
+    val commissionValue: Double?,
+    val status: String = "active",
+)
+
+data class UpdateCollectorInput(
+    val name: String,
+    val phone: String? = null,
+    val commissionType: String,
+    val commissionBase: String,
+    val commissionValue: Double?,
+    val status: String,
+)
+
+data class CashMovementInput(
+    val type: String,
+    val direction: String?,
+    val amount: Double,
+    val movementDate: String,
+    val description: String,
+)
+
 /** Datos del formulario de edición de préstamo. */
 data class UpdateLoanInput(
     val collectorId: Long?,

@@ -146,6 +146,15 @@ fun PrestamistaApp(
         onApproveLoan = viewModel::approveLoan,
         onRejectLoan = viewModel::rejectLoan,
         onCreateExpense = viewModel::createExpense,
+        onUpdateAdminClient = viewModel::updateAdminClient,
+        onDeleteAdminClient = viewModel::deleteAdminClient,
+        onDeleteAdminLoan = viewModel::deleteAdminLoan,
+        onCancelPayment = viewModel::cancelPayment,
+        onLoadAdminCollectorDetail = viewModel::loadAdminCollectorDetail,
+        onCreateAdminCollector = viewModel::createAdminCollector,
+        onUpdateAdminCollector = viewModel::updateAdminCollector,
+        onPayCollectorCommission = viewModel::payCollectorCommission,
+        onStoreAdminCashMovement = viewModel::storeAdminCashMovement,
         onLogout = viewModel::logout,
     )
 }
@@ -190,6 +199,15 @@ private fun AuthenticatedShell(
     onApproveLoan: (Long) -> Unit,
     onRejectLoan: (Long, String?) -> Unit,
     onCreateExpense: (Long?, String, String, String) -> Unit,
+    onUpdateAdminClient: (Long, com.sistemaprestamista.mobile.data.model.UpdateClientInput) -> Unit,
+    onDeleteAdminClient: (Long, () -> Unit) -> Unit,
+    onDeleteAdminLoan: (Long, () -> Unit) -> Unit,
+    onCancelPayment: (Long, String, () -> Unit) -> Unit,
+    onLoadAdminCollectorDetail: (Long) -> Unit,
+    onCreateAdminCollector: (com.sistemaprestamista.mobile.data.model.NewCollectorInput) -> Unit,
+    onUpdateAdminCollector: (Long, com.sistemaprestamista.mobile.data.model.UpdateCollectorInput) -> Unit,
+    onPayCollectorCommission: (Long, Long) -> Unit,
+    onStoreAdminCashMovement: (com.sistemaprestamista.mobile.data.model.CashMovementInput) -> Unit,
     onLogout: () -> Unit,
 ) {
     val navController = rememberNavController()
@@ -525,6 +543,9 @@ private fun AuthenticatedShell(
                     CashScreen(
                         summary = state.cashSummary,
                         movements = state.cashMovements,
+                        canCreateMovement = state.canManagePortfolio,
+                        isSavingMovement = state.isMovementSaving,
+                        onCreateMovement = if (state.canManagePortfolio) onStoreAdminCashMovement else null,
                     )
                 }
 
@@ -545,7 +566,37 @@ private fun AuthenticatedShell(
                             navController.navigate(AppRoutes.adminLoanDetail(loanId))
                         },
                         onOpenInstallment = { },
+                        onEdit = if (state.canUpdateClients && clientId != null) {
+                            { navController.navigate(AppRoutes.adminClientEdit(clientId)) }
+                        } else null,
+                        onDelete = if (state.canDeleteClients && clientId != null) {
+                            { onDeleteAdminClient(clientId) { navController.popBackStack() } }
+                        } else null,
+                        isDeletingClient = state.isClientSaving,
                     )
+                }
+
+                composable(AppRoutes.AdminClientEdit) { backStackEntry ->
+                    val clientId = backStackEntry.arguments?.getString("clientId")?.toLongOrNull()
+                    val detail = state.selectedClientDetail?.takeIf { it.summary.id == clientId }
+
+                    LaunchedEffect(state.isClientSaving, state.successMessage) {
+                        if (!state.isClientSaving && state.successMessage != null && detail != null) {
+                            navController.popBackStack()
+                        }
+                    }
+
+                    if (detail == null) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            androidx.compose.material3.CircularProgressIndicator()
+                        }
+                    } else {
+                        ClientEditScreen(
+                            detail = detail,
+                            isSaving = state.isClientSaving,
+                            onSubmit = { input -> if (clientId != null) onUpdateAdminClient(clientId, input) },
+                        )
+                    }
                 }
 
                 composable(AppRoutes.AdminLoanDetail) { backStackEntry ->
@@ -572,6 +623,10 @@ private fun AuthenticatedShell(
                         } else {
                             null
                         },
+                        onDeleteLoan = if (state.canDeleteLoan && loanId != null) {
+                            { onDeleteAdminLoan(loanId) { navController.popBackStack() } }
+                        } else null,
+                        isDeletingLoan = state.isLoanSaving,
                     )
                 }
 
@@ -602,6 +657,78 @@ private fun AuthenticatedShell(
                             onSubmit = { input ->
                                 if (loanId != null) onUpdateAdminLoan(loanId, input)
                             },
+                        )
+                    }
+                }
+
+                composable(AppDestination.CollectorsAdmin.route) {
+                    LaunchedEffect(Unit) { onLoadAdminCollectors() }
+
+                    CollectorsScreen(
+                        collectors = state.adminCollectors,
+                        isLoading = state.isDetailLoading,
+                        onOpenCollector = { collectorId ->
+                            navController.navigate(AppRoutes.adminCollectorDetail(collectorId))
+                        },
+                        onCreateCollector = { navController.navigate(AppRoutes.AdminCollectorCreate) },
+                    )
+                }
+
+                composable(AppRoutes.AdminCollectorCreate) {
+                    LaunchedEffect(state.lastCreatedCollectorId) {
+                        if (state.lastCreatedCollectorId != null) {
+                            val id = state.lastCreatedCollectorId
+                            onClearCreationMarkers()
+                            navController.popBackStack()
+                            navController.navigate(AppRoutes.adminCollectorDetail(id))
+                        }
+                    }
+
+                    CollectorFormScreen(
+                        isSaving = state.isCollectorSaving,
+                        onCreateCollector = onCreateAdminCollector,
+                    )
+                }
+
+                composable(AppRoutes.AdminCollectorDetail) { backStackEntry ->
+                    val collectorId = backStackEntry.arguments?.getString("collectorId")?.toLongOrNull()
+
+                    LaunchedEffect(collectorId) {
+                        if (collectorId != null) onLoadAdminCollectorDetail(collectorId)
+                    }
+
+                    CollectorDetailScreen(
+                        detail = state.selectedCollectorDetail?.takeIf { it.id == collectorId },
+                        isLoading = state.isDetailLoading,
+                        isPayingCommission = state.isCollectorSaving,
+                        onEdit = if (collectorId != null) {
+                            { navController.navigate(AppRoutes.adminCollectorEdit(collectorId)) }
+                        } else { {} },
+                        onPayCommission = { commissionId ->
+                            if (collectorId != null) onPayCollectorCommission(collectorId, commissionId)
+                        },
+                    )
+                }
+
+                composable(AppRoutes.AdminCollectorEdit) { backStackEntry ->
+                    val collectorId = backStackEntry.arguments?.getString("collectorId")?.toLongOrNull()
+                    val detail = state.selectedCollectorDetail?.takeIf { it.id == collectorId }
+
+                    LaunchedEffect(state.isCollectorSaving, state.successMessage) {
+                        if (!state.isCollectorSaving && state.successMessage != null && detail != null) {
+                            navController.popBackStack()
+                        }
+                    }
+
+                    if (detail == null) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            androidx.compose.material3.CircularProgressIndicator()
+                        }
+                    } else {
+                        CollectorFormScreen(
+                            existing = detail,
+                            isSaving = state.isCollectorSaving,
+                            onUpdateCollector = { input -> if (collectorId != null) onUpdateAdminCollector(collectorId, input) },
                         )
                     }
                 }
@@ -704,6 +831,11 @@ private fun AuthenticatedShell(
                     ReceiptDetailScreen(
                         receipt = state.selectedPaymentDetail ?: state.lastPaymentReceipt,
                         printSettingsStore = printSettingsStore,
+                        canCancelPayment = state.canCancelPayments,
+                        isCancelling = state.isPaymentCancelling,
+                        onCancelPayment = if (state.canCancelPayments) { paymentId, reason ->
+                            onCancelPayment(paymentId, reason) { }
+                        } else null,
                     )
                 }
 
@@ -873,13 +1005,18 @@ private fun currentDestination(
             AppRoutes.LoanDetail,
             AppRoutes.InstallmentDetail -> AppDestination.Collections
             AppRoutes.AdminClientDetail,
-            AppRoutes.AdminClientCreate -> AppDestination.ClientsAdmin
+            AppRoutes.AdminClientCreate,
+            AppRoutes.AdminClientEdit -> AppDestination.ClientsAdmin
             AppRoutes.AdminLoanDetail,
             AppRoutes.AdminLoanCreate,
             AppRoutes.AdminLoanEdit,
             AppRoutes.AdminQuotes,
             AppRoutes.AdminQuoteCreate,
             AppRoutes.AdminQuoteDetail -> AppDestination.LoansAdmin
+            AppRoutes.AdminCollectors,
+            AppRoutes.AdminCollectorCreate,
+            AppRoutes.AdminCollectorDetail,
+            AppRoutes.AdminCollectorEdit -> AppDestination.CollectorsAdmin
             AppRoutes.ReceiptDetail -> AppDestination.Payments
             AppRoutes.PrintSettings,
             AppRoutes.PendingPayments -> AppDestination.Profile
@@ -896,8 +1033,12 @@ private fun currentTitle(
         AppRoutes.LoanDetail, AppRoutes.AdminLoanDetail -> "Detalle del Préstamo"
         AppRoutes.InstallmentDetail -> "Detalle de la Cuota"
         AppRoutes.AdminClientCreate -> "Nuevo Cliente"
+        AppRoutes.AdminClientEdit -> "Editar Cliente"
         AppRoutes.AdminLoanCreate -> "Nuevo Préstamo"
         AppRoutes.AdminLoanEdit -> "Editar Préstamo"
+        AppRoutes.AdminCollectorCreate -> "Nuevo Cobrador"
+        AppRoutes.AdminCollectorDetail -> "Detalle del Cobrador"
+        AppRoutes.AdminCollectorEdit -> "Editar Cobrador"
         AppRoutes.AdminQuotes -> "Cotizaciones"
         AppRoutes.AdminQuoteCreate -> "Nueva Cotización"
         AppRoutes.AdminQuoteDetail -> "Detalle de Cotización"

@@ -23,8 +23,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AttachMoney
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.EventRepeat
@@ -97,6 +98,8 @@ internal fun LoanDetailScreen(
     onGenerateDocument: ((Long, String) -> Unit)? = null,
     isDocumentGenerating: Boolean = false,
     onEditLoan: (() -> Unit)? = null,
+    onDeleteLoan: (() -> Unit)? = null,
+    isDeletingLoan: Boolean = false,
 ) {
     val loan = detail?.summary ?: fallbackLoan
 
@@ -115,6 +118,23 @@ internal fun LoanDetailScreen(
     val payments = detail?.payments.orEmpty()
 
     var showPaymentDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Eliminar préstamo") },
+            text = { Text("¿Deseas eliminar el préstamo ${loan.loanNumber}? Esta acción no se puede deshacer.") },
+            confirmButton = {
+                Button(
+                    onClick = { showDeleteDialog = false; onDeleteLoan?.invoke() },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                ) { Text("Eliminar") }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar") } },
+        )
+    }
+
     val canPay = onRegisterPayment != null &&
             loan.status.trim().lowercase() in setOf("active", "late")
 
@@ -141,7 +161,15 @@ internal fun LoanDetailScreen(
             start = 20.dp,
             end = 20.dp,
             top = 20.dp,
-            bottom = if (canPay && onEditLoan != null) 168.dp else if (canPay || onEditLoan != null) 96.dp else 28.dp,
+            bottom = run {
+                val fabCount = listOf(canPay, onEditLoan != null, onDeleteLoan != null).count { it }
+                when (fabCount) {
+                    0 -> 28.dp
+                    1 -> 96.dp
+                    2 -> 168.dp
+                    else -> 240.dp
+                }
+            },
         ),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
@@ -233,6 +261,16 @@ internal fun LoanDetailScreen(
                     contentColor = Color.White,
                     icon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
                     text = { Text("Editar préstamo", fontWeight = FontWeight.Bold) },
+                )
+            }
+
+            if (onDeleteLoan != null) {
+                ExtendedFloatingActionButton(
+                    onClick = { showDeleteDialog = true },
+                    containerColor = Color(0xFFDC2626),
+                    contentColor = Color.White,
+                    icon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                    text = { Text("Eliminar préstamo", fontWeight = FontWeight.Bold) },
                 )
             }
 

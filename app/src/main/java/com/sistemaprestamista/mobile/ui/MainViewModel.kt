@@ -523,9 +523,217 @@ class MainViewModel(
         _uiState.update { it.copy(lastGeneratedRegistrationLink = null) }
     }
 
+    /** Editar un cliente existente (back-office). */
+    fun updateAdminClient(clientId: Long, input: com.sistemaprestamista.mobile.data.model.UpdateClientInput) {
+        if (uiState.value.isClientSaving) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isClientSaving = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminUpdateClient(clientId, input) }
+            }.onSuccess { detail ->
+                _uiState.update {
+                    val updatedSummary = detail.summary
+                    it.copy(
+                        isClientSaving = false,
+                        selectedClientDetail = detail,
+                        adminClients = it.adminClients.map { c -> if (c.id == clientId) updatedSummary else c },
+                        successMessage = "Cliente actualizado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isClientSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Eliminar un cliente (back-office). */
+    fun deleteAdminClient(clientId: Long, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isClientSaving = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminDeleteClient(clientId) }
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isClientSaving = false,
+                        adminClients = it.adminClients.filterNot { c -> c.id == clientId },
+                        selectedClientDetail = it.selectedClientDetail?.takeIf { d -> d.summary.id != clientId },
+                        successMessage = "Cliente eliminado.",
+                    )
+                }
+                onSuccess()
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isClientSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Eliminar un préstamo (back-office). */
+    fun deleteAdminLoan(loanId: Long, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoanSaving = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminDeleteLoan(loanId) }
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isLoanSaving = false,
+                        adminLoans = it.adminLoans.filterNot { l -> l.id == loanId },
+                        selectedLoanDetail = it.selectedLoanDetail?.takeIf { d -> d.summary.id != loanId },
+                        successMessage = "Préstamo eliminado.",
+                    )
+                }
+                onSuccess()
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isLoanSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Cancelar un pago (back-office). */
+    fun cancelPayment(paymentId: Long, reason: String, onSuccess: () -> Unit) {
+        if (reason.trim().length < 10) {
+            _uiState.update { it.copy(errorMessage = "La razón debe tener al menos 10 caracteres.") }
+            return
+        }
+        if (uiState.value.isPaymentCancelling) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isPaymentCancelling = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminCancelPayment(paymentId, reason.trim()) }
+            }.onSuccess { receipt ->
+                _uiState.update {
+                    it.copy(
+                        isPaymentCancelling = false,
+                        selectedPaymentDetail = receipt,
+                        successMessage = "Pago anulado.",
+                    )
+                }
+                onSuccess()
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isPaymentCancelling = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Cargar detalle de cobrador (back-office). */
+    fun loadAdminCollectorDetail(collectorId: Long) {
+        if (uiState.value.selectedCollectorDetail?.id == collectorId || uiState.value.isDetailLoading) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDetailLoading = true, errorMessage = null, selectedCollectorDetail = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminCollectorDetail(collectorId) }
+            }.onSuccess { detail ->
+                _uiState.update { it.copy(isDetailLoading = false, selectedCollectorDetail = detail) }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isDetailLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Crear cobrador (back-office). */
+    fun createAdminCollector(input: com.sistemaprestamista.mobile.data.model.NewCollectorInput) {
+        if (uiState.value.isCollectorSaving) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCollectorSaving = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminCreateCollector(input) }
+            }.onSuccess { detail ->
+                _uiState.update {
+                    it.copy(
+                        isCollectorSaving = false,
+                        selectedCollectorDetail = detail,
+                        lastCreatedCollectorId = detail.id,
+                        adminCollectors = it.adminCollectors + com.sistemaprestamista.mobile.data.model.CollectorOption(detail.id, detail.name),
+                        successMessage = "Cobrador ${detail.name} creado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isCollectorSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Editar cobrador (back-office). */
+    fun updateAdminCollector(collectorId: Long, input: com.sistemaprestamista.mobile.data.model.UpdateCollectorInput) {
+        if (uiState.value.isCollectorSaving) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCollectorSaving = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminUpdateCollector(collectorId, input) }
+            }.onSuccess { detail ->
+                _uiState.update {
+                    it.copy(
+                        isCollectorSaving = false,
+                        selectedCollectorDetail = detail,
+                        adminCollectors = it.adminCollectors.map { o -> if (o.id == collectorId) com.sistemaprestamista.mobile.data.model.CollectorOption(detail.id, detail.name) else o },
+                        successMessage = "Cobrador actualizado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isCollectorSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Pagar comisión de cobrador (back-office). */
+    fun payCollectorCommission(collectorId: Long, commissionId: Long) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCollectorSaving = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.adminPayCommission(collectorId, commissionId)
+                    repository.adminCollectorDetail(collectorId)
+                }
+            }.onSuccess { detail ->
+                _uiState.update {
+                    it.copy(
+                        isCollectorSaving = false,
+                        selectedCollectorDetail = detail,
+                        successMessage = "Comisión pagada.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isCollectorSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Registrar movimiento manual de caja (back-office). */
+    fun storeAdminCashMovement(input: com.sistemaprestamista.mobile.data.model.CashMovementInput) {
+        if (uiState.value.isMovementSaving) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isMovementSaving = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.adminStoreMovement(input)
+                    Triple(repository.cashboxMovements(), repository.cashboxSummary(), repository.cashboxExpenses())
+                }
+            }.onSuccess { (movements, summary, expenses) ->
+                _uiState.update {
+                    it.copy(
+                        isMovementSaving = false,
+                        cashMovements = movements,
+                        cashSummary = summary,
+                        expenses = expenses,
+                        successMessage = "Movimiento registrado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isMovementSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
     /** Limpia los marcadores de "recién creado" usados para navegar tras guardar. */
     fun clearCreationMarkers() {
-        _uiState.update { it.copy(lastCreatedClientId = null, lastCreatedQuoteId = null, lastCreatedLoanId = null) }
+        _uiState.update { it.copy(lastCreatedClientId = null, lastCreatedQuoteId = null, lastCreatedLoanId = null, lastCreatedCollectorId = null) }
     }
 
     /** Recarga el detalle del préstamo cobrado y su fila en la cartera; un fallo se ignora. */

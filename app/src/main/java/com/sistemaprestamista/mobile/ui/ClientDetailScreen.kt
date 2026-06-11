@@ -20,19 +20,31 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.Work
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,6 +85,9 @@ internal fun ClientDetailScreen(
     fallbackClient: ClientSummary?,
     onOpenLoan: (Long) -> Unit,
     onOpenInstallment: (Long) -> Unit,
+    onEdit: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
+    isDeletingClient: Boolean = false,
 ) {
     val client = detail?.summary ?: fallbackClient
 
@@ -91,6 +106,25 @@ internal fun ClientDetailScreen(
     val installments = detail?.pendingInstallments.orEmpty()
     val recentPayments = detail?.recentPayments.orEmpty()
     val financial = detail?.financialSummary
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Eliminar cliente") },
+            text = { Text("¿Deseas eliminar a ${client.fullName}? Esta acción no se puede deshacer.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteDialog = false
+                        onDelete?.invoke()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Danger),
+                ) { Text("Eliminar") }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar") } },
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -109,6 +143,42 @@ internal fun ClientDetailScreen(
                 client = client,
                 detail = detail,
             )
+        }
+
+        if (onEdit != null || onDelete != null) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (onEdit != null) {
+                        FilledTonalButton(
+                            onClick = onEdit,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                            androidx.compose.foundation.layout.Spacer(Modifier.size(6.dp))
+                            Text("Editar cliente")
+                        }
+                    }
+                    if (onDelete != null) {
+                        OutlinedButton(
+                            onClick = { showDeleteDialog = true },
+                            enabled = !isDeletingClient,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger),
+                        ) {
+                            if (isDeletingClient) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                                androidx.compose.foundation.layout.Spacer(Modifier.size(6.dp))
+                                Text("Eliminar")
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if (isLoading && detail == null) {

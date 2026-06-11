@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Payments
@@ -30,6 +31,9 @@ import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -89,6 +93,9 @@ private val Error = Color(0xFFBA1A1A)
 internal fun ReceiptDetailScreen(
     receipt: PaymentReceipt?,
     printSettingsStore: PrintSettingsStore,
+    canCancelPayment: Boolean = false,
+    isCancelling: Boolean = false,
+    onCancelPayment: ((paymentId: Long, reason: String) -> Unit)? = null,
 ) {
     if (receipt == null) {
         LoadingReceiptState()
@@ -102,6 +109,38 @@ internal fun ReceiptDetailScreen(
     var printers by remember { mutableStateOf<List<BluetoothPrinter>>(emptyList()) }
     var selectedPrinter by remember { mutableStateOf(printSettingsStore.selectedPrinter()) }
     var printMessage by remember { mutableStateOf<String?>(null) }
+    var showCancelDialog by remember { mutableStateOf(false) }
+    var cancelReason by remember { mutableStateOf("") }
+
+    if (showCancelDialog) {
+        AlertDialog(
+            onDismissRequest = { showCancelDialog = false },
+            title = { Text("Anular pago #${receipt.receiptNumber}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Escribe la razón de la anulación (mínimo 10 caracteres).")
+                    OutlinedTextField(
+                        value = cancelReason,
+                        onValueChange = { cancelReason = it },
+                        label = { Text("Razón") },
+                        singleLine = false,
+                        minLines = 2,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCancelDialog = false
+                        onCancelPayment?.invoke(receipt.id, cancelReason)
+                    },
+                    enabled = cancelReason.trim().length >= 10,
+                    colors = ButtonDefaults.buttonColors(containerColor = Error),
+                ) { Text("Anular") }
+            },
+            dismissButton = { TextButton(onClick = { showCancelDialog = false; cancelReason = "" }) { Text("Cancelar") } },
+        )
+    }
 
     val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -183,6 +222,26 @@ internal fun ReceiptDetailScreen(
                 receipt = receipt,
                 formatAmount = { currency.format(it) },
             )
+        }
+
+        if (canCancelPayment && !isCancelled && onCancelPayment != null) {
+            OutlinedButton(
+                onClick = { showCancelDialog = true },
+                enabled = !isCancelling,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(22.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Error),
+            ) {
+                if (isCancelling) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Error)
+                } else {
+                    Icon(Icons.Outlined.Block, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Anular pago", fontWeight = FontWeight.Bold)
+                }
+            }
         }
 
         receipt.whatsappUrl?.let { url ->

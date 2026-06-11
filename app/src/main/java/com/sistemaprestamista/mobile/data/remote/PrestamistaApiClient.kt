@@ -25,10 +25,18 @@ import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.LoanQuote
 import com.sistemaprestamista.mobile.data.model.LoginResult
 import com.sistemaprestamista.mobile.data.model.MapClient
+import com.sistemaprestamista.mobile.data.model.CashMovementInput
 import com.sistemaprestamista.mobile.data.model.ClientRegistrationLink
+import com.sistemaprestamista.mobile.data.model.CollectorCommissionItem
+import com.sistemaprestamista.mobile.data.model.CollectorCommissionSummary
+import com.sistemaprestamista.mobile.data.model.CollectorDetail
 import com.sistemaprestamista.mobile.data.model.CollectorOption
+import com.sistemaprestamista.mobile.data.model.CollectorStats
 import com.sistemaprestamista.mobile.data.model.NewClientInput
+import com.sistemaprestamista.mobile.data.model.NewCollectorInput
 import com.sistemaprestamista.mobile.data.model.NewLoanInput
+import com.sistemaprestamista.mobile.data.model.UpdateClientInput
+import com.sistemaprestamista.mobile.data.model.UpdateCollectorInput
 import com.sistemaprestamista.mobile.data.model.UpdateLoanInput
 import com.sistemaprestamista.mobile.data.model.Page
 import com.sistemaprestamista.mobile.data.model.PaymentDetailLine
@@ -381,6 +389,127 @@ class PrestamistaApiClient(
 
         val json = request(path = "admin/loans", method = "POST", token = token, body = payload)
         return parseLoan(json.getJSONObject("data"))
+    }
+
+    fun adminUpdateClient(token: String, clientId: Long, input: UpdateClientInput): ClientDetail {
+        val payload = JSONObject()
+            .put("full_name", input.fullName)
+            .put("address", input.address)
+            .put("status", input.status)
+            .put("risk_level", input.riskLevel)
+        input.identification?.let { payload.put("identification", it) }
+        input.phone?.let { payload.put("phone", it) }
+        input.secondaryPhone?.let { payload.put("secondary_phone", it) }
+        input.email?.let { payload.put("email", it) }
+        input.locationReference?.let { payload.put("location_reference", it) }
+        input.latitude?.let { payload.put("latitude", it) }
+        input.longitude?.let { payload.put("longitude", it) }
+        input.workplace?.let { payload.put("workplace", it) }
+        input.workplacePhone?.let { payload.put("workplace_phone", it) }
+        input.monthlyIncome?.let { payload.put("monthly_income", it) }
+        input.notes?.let { payload.put("notes", it) }
+
+        val json = request(path = "admin/clients/$clientId", method = "PUT", token = token, body = payload)
+        return parseClientDetail(json.getJSONObject("data"))
+    }
+
+    fun adminDeleteClient(token: String, clientId: Long) {
+        request(path = "admin/clients/$clientId", method = "DELETE", token = token)
+    }
+
+    fun adminDeleteLoan(token: String, loanId: Long) {
+        request(path = "admin/loans/$loanId", method = "DELETE", token = token)
+    }
+
+    fun adminCancelPayment(token: String, paymentId: Long, reason: String): PaymentReceipt {
+        val payload = JSONObject().put("cancellation_reason", reason)
+        val json = request(path = "admin/payments/$paymentId/cancel", method = "POST", token = token, body = payload)
+        return parsePayment(json.getJSONObject("data"))
+    }
+
+    fun adminCreateCollector(token: String, input: NewCollectorInput): CollectorDetail {
+        val payload = JSONObject()
+            .put("name", input.name)
+            .put("commission_type", input.commissionType)
+            .put("commission_base", input.commissionBase)
+            .put("status", input.status)
+            .put("access_mode", "none")
+        input.phone?.let { payload.put("phone", it) }
+        input.commissionValue?.let { payload.put("commission_value", it) }
+
+        val json = request(path = "admin/collectors", method = "POST", token = token, body = payload)
+        return parseCollectorDetail(json.getJSONObject("data"))
+    }
+
+    fun adminCollectorDetail(token: String, collectorId: Long): CollectorDetail {
+        val json = request(path = "admin/collectors/$collectorId", method = "GET", token = token)
+        return parseCollectorDetail(json.getJSONObject("data"))
+    }
+
+    fun adminUpdateCollector(token: String, collectorId: Long, input: UpdateCollectorInput): CollectorDetail {
+        val payload = JSONObject()
+            .put("name", input.name)
+            .put("commission_type", input.commissionType)
+            .put("commission_base", input.commissionBase)
+            .put("status", input.status)
+        input.phone?.let { payload.put("phone", it) }
+        input.commissionValue?.let { payload.put("commission_value", it) }
+
+        val json = request(path = "admin/collectors/$collectorId", method = "PUT", token = token, body = payload)
+        return parseCollectorDetail(json.getJSONObject("data"))
+    }
+
+    fun adminPayCommission(token: String, collectorId: Long, commissionId: Long): CollectorCommissionItem {
+        val json = request(path = "admin/collectors/$collectorId/commissions/$commissionId/pay", method = "POST", token = token)
+        return parseCommission(json.getJSONObject("data"))
+    }
+
+    fun adminStoreMovement(token: String, input: CashMovementInput) {
+        val payload = JSONObject()
+            .put("type", input.type)
+            .put("amount", input.amount)
+            .put("movement_date", input.movementDate)
+            .put("description", input.description)
+        input.direction?.let { payload.put("direction", it) }
+
+        request(path = "admin/cash/movements", method = "POST", token = token, body = payload)
+    }
+
+    private fun parseCollectorDetail(json: JSONObject): CollectorDetail {
+        val summary = json.getJSONObject("commission_summary")
+        val stats = json.optJSONObject("stats")
+        return CollectorDetail(
+            id = json.getLong("id"),
+            name = json.getString("name"),
+            phone = json.nullableString("phone"),
+            commissionType = json.optString("commission_type"),
+            commissionBase = json.optString("commission_base", "payment_total"),
+            commissionValue = json.optDouble("commission_value", 0.0),
+            status = json.optString("status"),
+            commissionSummary = CollectorCommissionSummary(
+                totalGenerated = summary.optDouble("total_generated", 0.0),
+                totalPending = summary.optDouble("total_pending", 0.0),
+                totalPaid = summary.optDouble("total_paid", 0.0),
+            ),
+            pendingCommissions = json.optJSONArray("pending_commissions").mapObjects(::parseCommission),
+            stats = if (stats != null) CollectorStats(
+                activeLoans = stats.optInt("active_loans", 0),
+                lateLoans = stats.optInt("late_loans", 0),
+            ) else CollectorStats(0, 0),
+        )
+    }
+
+    private fun parseCommission(json: JSONObject): CollectorCommissionItem {
+        return CollectorCommissionItem(
+            id = json.getLong("id"),
+            commissionType = json.optString("commission_type"),
+            commissionValue = json.optDouble("commission_value", 0.0),
+            baseAmount = json.optDouble("base_amount", 0.0),
+            commissionAmount = json.optDouble("commission_amount", 0.0),
+            status = json.optString("status"),
+            paidAt = json.nullableString("paid_at"),
+            receiptNumber = json.nullableString("receipt_number"),
+        )
     }
 
     fun adminUpdateLoan(token: String, loanId: Long, input: UpdateLoanInput): LoanDetail {

@@ -4,6 +4,7 @@ import com.sistemaprestamista.mobile.data.model.AdminReportSummary
 import com.sistemaprestamista.mobile.data.model.CashMovementItem
 import com.sistemaprestamista.mobile.data.model.CashSummary
 import com.sistemaprestamista.mobile.data.model.ClientRegistrationLink
+import com.sistemaprestamista.mobile.data.model.CollectorDetail
 import com.sistemaprestamista.mobile.data.model.CollectorOption
 import com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow
 import com.sistemaprestamista.mobile.data.model.ExpenseCategoryOption
@@ -87,6 +88,12 @@ data class AppUiState(
     val cashMovements: List<CashMovementItem> = emptyList(),
     val cashSummary: CashSummary? = null,
     val isExpenseSaving: Boolean = false,
+    // Cobradores (back-office)
+    val selectedCollectorDetail: CollectorDetail? = null,
+    val isCollectorSaving: Boolean = false,
+    val lastCreatedCollectorId: Long? = null,
+    val isPaymentCancelling: Boolean = false,
+    val isMovementSaving: Boolean = false,
     val errorMessage: String? = null,
     val successMessage: String? = null,
 ) {
@@ -126,6 +133,18 @@ data class AppUiState(
 
     /** Edición de préstamos desde la app (mismo gate que la web: loans.update). */
     val canEditLoan: Boolean = canManagePortfolio && permissions.contains("loans.update")
+
+    /** Editar clientes. */
+    val canUpdateClients: Boolean = canManagePortfolio && permissions.contains("clients.update")
+
+    /** Eliminar clientes. */
+    val canDeleteClients: Boolean = canManagePortfolio
+
+    /** Eliminar préstamos. */
+    val canDeleteLoan: Boolean = canManagePortfolio
+
+    /** Cancelar/anular pagos. */
+    val canCancelPayments: Boolean = canManagePortfolio && permissions.contains("payments.cancel")
 
     /** Cotizaciones (mismo gate que la web: quotes.manage). */
     val canManageQuotes: Boolean = canManagePortfolio && permissions.contains("quotes.manage")
