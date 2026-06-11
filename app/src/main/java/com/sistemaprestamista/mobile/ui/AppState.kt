@@ -3,6 +3,7 @@ package com.sistemaprestamista.mobile.ui
 import com.sistemaprestamista.mobile.data.model.AdminReportSummary
 import com.sistemaprestamista.mobile.data.model.CashMovementItem
 import com.sistemaprestamista.mobile.data.model.CashSummary
+import com.sistemaprestamista.mobile.data.model.ClientRegistrationLink
 import com.sistemaprestamista.mobile.data.model.CollectorOption
 import com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow
 import com.sistemaprestamista.mobile.data.model.ExpenseCategoryOption
@@ -72,6 +73,9 @@ data class AppUiState(
     val adminCollectors: List<CollectorOption> = emptyList(),
     val isLoanSaving: Boolean = false,
     val lastCreatedLoanId: Long? = null,
+    val isLoanUpdating: Boolean = false,
+    val isLinkGenerating: Boolean = false,
+    val lastGeneratedRegistrationLink: ClientRegistrationLink? = null,
     val adminQuotes: List<LoanQuote> = emptyList(),
     val selectedQuote: LoanQuote? = null,
     val isQuoteSaving: Boolean = false,
@@ -119,6 +123,9 @@ data class AppUiState(
 
     /** Creación de préstamos desde la app (mismo gate que la web: loans.create). */
     val canCreateLoans: Boolean = canManagePortfolio && permissions.contains("loans.create")
+
+    /** Edición de préstamos desde la app (mismo gate que la web: loans.update). */
+    val canEditLoan: Boolean = canManagePortfolio && permissions.contains("loans.update")
 
     /** Cotizaciones (mismo gate que la web: quotes.manage). */
     val canManageQuotes: Boolean = canManagePortfolio && permissions.contains("quotes.manage")

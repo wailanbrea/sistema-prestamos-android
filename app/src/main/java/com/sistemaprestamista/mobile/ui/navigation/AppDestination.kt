@@ -58,6 +58,7 @@ object AppRoutes {
     const val AdminLoanDetail = "admin/loans/{loanId}"
     const val AdminClientCreate = "admin/client-create"
     const val AdminLoanCreate = "admin/loan-create"
+    const val AdminLoanEdit = "admin/loan-edit/{loanId}"
     const val AdminQuotes = "admin/quotes"
     const val AdminQuoteCreate = "admin/quote-create"
     const val AdminQuoteDetail = "admin/quote/{quoteId}"
@@ -74,6 +75,8 @@ object AppRoutes {
     fun adminClientDetail(clientId: Long): String = "admin/clients/$clientId"
 
     fun adminLoanDetail(loanId: Long): String = "admin/loans/$loanId"
+
+    fun adminLoanEdit(loanId: Long): String = "admin/loan-edit/$loanId"
 
     fun adminQuoteDetail(quoteId: Long): String = "admin/quote/$quoteId"
 }

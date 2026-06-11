@@ -140,6 +140,9 @@ fun PrestamistaApp(
         onLoadAdminQuote = viewModel::loadAdminQuote,
         onDeleteAdminQuote = viewModel::deleteAdminQuote,
         onClearCreationMarkers = viewModel::clearCreationMarkers,
+        onUpdateAdminLoan = viewModel::updateAdminLoan,
+        onCreateRegistrationLink = viewModel::createClientRegistrationLink,
+        onClearRegistrationLink = viewModel::clearRegistrationLink,
         onApproveLoan = viewModel::approveLoan,
         onRejectLoan = viewModel::rejectLoan,
         onCreateExpense = viewModel::createExpense,
@@ -181,6 +184,9 @@ private fun AuthenticatedShell(
     onLoadAdminQuote: (Long) -> Unit,
     onDeleteAdminQuote: (Long) -> Unit,
     onClearCreationMarkers: () -> Unit,
+    onUpdateAdminLoan: (Long, com.sistemaprestamista.mobile.data.model.UpdateLoanInput) -> Unit,
+    onCreateRegistrationLink: (String?, String?) -> Unit,
+    onClearRegistrationLink: () -> Unit,
     onApproveLoan: (Long) -> Unit,
     onRejectLoan: (Long, String?) -> Unit,
     onCreateExpense: (Long?, String, String, String) -> Unit,
@@ -364,6 +370,11 @@ private fun AuthenticatedShell(
                         } else {
                             null
                         },
+                        onGenerateRegistrationLink = if (state.canCreateClients) onCreateRegistrationLink else null,
+                        isGeneratingLink = state.isLinkGenerating,
+                        generatedLinkWhatsappUrl = state.lastGeneratedRegistrationLink?.whatsappUrl,
+                        generatedLinkFormUrl = state.lastGeneratedRegistrationLink?.formUrl,
+                        onDismissGeneratedLink = onClearRegistrationLink,
                     )
                 }
 
@@ -556,7 +567,43 @@ private fun AuthenticatedShell(
                         isPaymentLoading = state.isLoading,
                         onGenerateDocument = if (state.canGenerateDocuments) onGenerateLoanDocument else null,
                         isDocumentGenerating = state.isDocumentGenerating,
+                        onEditLoan = if (state.canEditLoan && loanId != null) {
+                            { navController.navigate(AppRoutes.adminLoanEdit(loanId)) }
+                        } else {
+                            null
+                        },
                     )
+                }
+
+                composable(AppRoutes.AdminLoanEdit) { backStackEntry ->
+                    val loanId = backStackEntry.arguments?.getString("loanId")?.toLongOrNull()
+                    val detail = state.selectedLoanDetail?.takeIf { it.summary.id == loanId }
+
+                    // Navigate back after a successful update
+                    androidx.compose.runtime.LaunchedEffect(state.selectedLoanDetail?.summary?.id, state.isLoanUpdating) {
+                        if (!state.isLoanUpdating && detail != null && state.successMessage != null) {
+                            navController.popBackStack()
+                        }
+                    }
+
+                    if (detail == null) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            androidx.compose.material3.CircularProgressIndicator()
+                        }
+                    } else {
+                        LoanEditScreen(
+                            detail = detail,
+                            collectors = state.adminCollectors,
+                            isSaving = state.isLoanUpdating,
+                            onLoadCollectors = onLoadAdminCollectors,
+                            onSubmit = { input ->
+                                if (loanId != null) onUpdateAdminLoan(loanId, input)
+                            },
+                        )
+                    }
                 }
 
                 composable(AppRoutes.PendingPayments) {
@@ -829,6 +876,7 @@ private fun currentDestination(
             AppRoutes.AdminClientCreate -> AppDestination.ClientsAdmin
             AppRoutes.AdminLoanDetail,
             AppRoutes.AdminLoanCreate,
+            AppRoutes.AdminLoanEdit,
             AppRoutes.AdminQuotes,
             AppRoutes.AdminQuoteCreate,
             AppRoutes.AdminQuoteDetail -> AppDestination.LoansAdmin
@@ -849,6 +897,7 @@ private fun currentTitle(
         AppRoutes.InstallmentDetail -> "Detalle de la Cuota"
         AppRoutes.AdminClientCreate -> "Nuevo Cliente"
         AppRoutes.AdminLoanCreate -> "Nuevo Préstamo"
+        AppRoutes.AdminLoanEdit -> "Editar Préstamo"
         AppRoutes.AdminQuotes -> "Cotizaciones"
         AppRoutes.AdminQuoteCreate -> "Nueva Cotización"
         AppRoutes.AdminQuoteDetail -> "Detalle de Cotización"

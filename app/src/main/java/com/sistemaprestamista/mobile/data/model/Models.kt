@@ -194,6 +194,10 @@ data class LoanFinancialSummary(
 
 data class LoanDetail(
     val summary: LoanSummary,
+    val collectorId: Long? = null,
+    val collectorName: String? = null,
+    val currency: String = "RD$",
+    val allowsCapitalPrepayment: Boolean = false,
     val interestRate: Double,
     val interestType: String,
     val calculationMethod: String,
@@ -446,6 +450,32 @@ data class QuoteInstallment(
     val principal: Double,
     val interest: Double,
     val amount: Double,
+)
+
+/** Datos del formulario de edición de préstamo. */
+data class UpdateLoanInput(
+    val collectorId: Long?,
+    val currency: String,
+    val guaranteeDescription: String?,
+    val notes: String?,
+    val allowsCapitalPrepayment: Boolean,
+    // Financial fields — only sent when the loan has no valid payments yet
+    val principalAmount: Double? = null,
+    val interestRate: Double? = null,
+    val interestType: String? = null,
+    val paymentFrequency: String? = null,
+    val calculationMethod: String? = null,
+    val termQuantity: Int? = null,
+    val lateFeeType: String? = null,
+    val lateFeeValue: Double? = null,
+    val startDate: String? = null,
+    val firstPaymentDate: String? = null,
+)
+
+/** Resultado de generar un link de auto-registro para un cliente. */
+data class ClientRegistrationLink(
+    val formUrl: String,
+    val whatsappUrl: String?,
 )
 
 enum class PaymentMethod(

@@ -482,6 +482,47 @@ class MainViewModel(
         }
     }
 
+    fun updateAdminLoan(loanId: Long, input: com.sistemaprestamista.mobile.data.model.UpdateLoanInput) {
+        if (uiState.value.isLoanUpdating) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoanUpdating = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminUpdateLoan(loanId, input) }
+            }.onSuccess { detail ->
+                _uiState.update {
+                    it.copy(
+                        isLoanUpdating = false,
+                        selectedLoanDetail = detail,
+                        adminLoans = it.adminLoans.map { loan -> if (loan.id == loanId) detail.summary else loan },
+                        successMessage = "Préstamo actualizado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isLoanUpdating = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun createClientRegistrationLink(recipientName: String?, recipientPhone: String?) {
+        if (uiState.value.isLinkGenerating) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLinkGenerating = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminCreateRegistrationLink(recipientName, recipientPhone) }
+            }.onSuccess { link ->
+                _uiState.update { it.copy(isLinkGenerating = false, lastGeneratedRegistrationLink = link) }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isLinkGenerating = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun clearRegistrationLink() {
+        _uiState.update { it.copy(lastGeneratedRegistrationLink = null) }
+    }
+
     /** Limpia los marcadores de "recién creado" usados para navegar tras guardar. */
     fun clearCreationMarkers() {
         _uiState.update { it.copy(lastCreatedClientId = null, lastCreatedQuoteId = null, lastCreatedLoanId = null) }

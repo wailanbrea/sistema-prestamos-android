@@ -12,7 +12,9 @@ import com.sistemaprestamista.mobile.data.model.InstallmentDetail
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanSummary
+import com.sistemaprestamista.mobile.data.model.ClientRegistrationLink
 import com.sistemaprestamista.mobile.data.model.NewLoanInput
+import com.sistemaprestamista.mobile.data.model.UpdateLoanInput
 import com.sistemaprestamista.mobile.data.model.MapClient
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
@@ -64,6 +66,11 @@ class PrestamistaRepository(
     fun adminCollectors(): List<CollectorOption> = apiClient.adminCollectors(requiredToken())
 
     fun adminCreateLoan(input: NewLoanInput): LoanSummary = apiClient.adminCreateLoan(requiredToken(), input)
+
+    fun adminUpdateLoan(loanId: Long, input: UpdateLoanInput): LoanDetail = apiClient.adminUpdateLoan(requiredToken(), loanId, input)
+
+    fun adminCreateRegistrationLink(recipientName: String?, recipientPhone: String?): ClientRegistrationLink =
+        apiClient.adminCreateRegistrationLink(requiredToken(), recipientName, recipientPhone)
 
     fun adminClients(search: String? = null): List<ClientSummary> = apiClient.adminClients(requiredToken(), search)
 

@@ -1,5 +1,7 @@
 package com.sistemaprestamista.mobile.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -22,12 +24,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Call
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.PersonOff
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
@@ -35,7 +41,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -72,8 +81,44 @@ internal fun ClientsScreen(
     clients: List<ClientSummary>,
     onOpenClient: (Long) -> Unit,
     onCreateClient: (() -> Unit)? = null,
+    onGenerateRegistrationLink: ((name: String?, phone: String?) -> Unit)? = null,
+    isGeneratingLink: Boolean = false,
+    generatedLinkWhatsappUrl: String? = null,
+    generatedLinkFormUrl: String? = null,
+    onDismissGeneratedLink: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
+    var showLinkDialog by remember { mutableStateOf(false) }
+
+    // Auto-open success state when link is generated while dialog is open
+    LaunchedEffect(generatedLinkWhatsappUrl, generatedLinkFormUrl) {
+        if ((generatedLinkWhatsappUrl != null || generatedLinkFormUrl != null) && !showLinkDialog) {
+            showLinkDialog = true
+        }
+    }
+
+    if (showLinkDialog && onGenerateRegistrationLink != null) {
+        RegistrationLinkDialog(
+            isGenerating = isGeneratingLink,
+            generatedWhatsappUrl = generatedLinkWhatsappUrl,
+            generatedFormUrl = generatedLinkFormUrl,
+            onGenerate = onGenerateRegistrationLink,
+            onOpenWhatsApp = { url ->
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                    )
+                }
+            },
+            onDismiss = {
+                showLinkDialog = false
+                onDismissGeneratedLink()
+            },
+        )
+    }
 
     val filteredClients = remember(clients, searchQuery) {
         val query = searchQuery.trim().lowercase()
@@ -90,6 +135,9 @@ internal fun ClientsScreen(
         }
     }
 
+    val hasFabs = onCreateClient != null || onGenerateRegistrationLink != null
+    val fabCount = listOfNotNull(onCreateClient, onGenerateRegistrationLink).size
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -101,7 +149,7 @@ internal fun ClientsScreen(
             start = 20.dp,
             end = 20.dp,
             top = 22.dp,
-            bottom = if (onCreateClient != null) 96.dp else 28.dp,
+            bottom = if (fabCount >= 2) 168.dp else if (hasFabs) 96.dp else 28.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -136,29 +184,143 @@ internal fun ClientsScreen(
         }
     }
 
-        if (onCreateClient != null) {
-            ExtendedFloatingActionButton(
-                onClick = onCreateClient,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(20.dp),
-                containerColor = PrimaryContainer,
-                contentColor = Color.White,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Add,
-                        contentDescription = null,
-                    )
-                },
-                text = {
-                    Text(
-                        text = "Nuevo cliente",
-                        fontWeight = FontWeight.Bold,
-                    )
-                },
-            )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
+            if (onGenerateRegistrationLink != null) {
+                ExtendedFloatingActionButton(
+                    onClick = { showLinkDialog = true },
+                    containerColor = Color(0xFF2E6DA4),
+                    contentColor = Color.White,
+                    icon = { Icon(Icons.Outlined.Link, contentDescription = null) },
+                    text = { Text("Enviar link", fontWeight = FontWeight.Bold) },
+                )
+            }
+
+            if (onCreateClient != null) {
+                ExtendedFloatingActionButton(
+                    onClick = onCreateClient,
+                    containerColor = PrimaryContainer,
+                    contentColor = Color.White,
+                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                    text = { Text("Nuevo cliente", fontWeight = FontWeight.Bold) },
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun RegistrationLinkDialog(
+    isGenerating: Boolean,
+    generatedWhatsappUrl: String?,
+    generatedFormUrl: String?,
+    onGenerate: (name: String?, phone: String?) -> Unit,
+    onOpenWhatsApp: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    val hasResult = generatedWhatsappUrl != null || generatedFormUrl != null
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (hasResult) "Link generado" else "Generar link de registro",
+                fontWeight = FontWeight.Bold,
+                color = Primary,
+            )
+        },
+        text = {
+            if (hasResult) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "El link de registro fue creado exitosamente.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF505F76),
+                    )
+                    if (generatedWhatsappUrl != null) {
+                        Button(
+                            onClick = { onOpenWhatsApp(generatedWhatsappUrl) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF25D366),
+                                contentColor = Color.White,
+                            ),
+                        ) {
+                            Text("Enviar por WhatsApp", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (generatedFormUrl != null) {
+                        Text(
+                            text = "Link: $generatedFormUrl",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF505F76),
+                        )
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Ingresa los datos del destinatario (opcional).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF505F76),
+                    )
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Nombre del cliente") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                    OutlinedTextField(
+                        value = phone,
+                        onValueChange = { phone = it },
+                        label = { Text("Teléfono (para WhatsApp)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        shape = RoundedCornerShape(12.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (!hasResult) {
+                Button(
+                    onClick = {
+                        onGenerate(
+                            name.trim().takeIf { it.isNotBlank() },
+                            phone.trim().takeIf { it.isNotBlank() },
+                        )
+                    },
+                    enabled = !isGenerating,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
+                ) {
+                    if (isGenerating) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                    } else {
+                        Text("Generar link", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(if (hasResult) "Cerrar" else "Cancelar")
+            }
+        },
+        containerColor = Color(0xFFFFFFFF),
+        shape = RoundedCornerShape(20.dp),
+    )
 }
 
 @Composable

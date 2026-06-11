@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AttachMoney
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Description
@@ -95,6 +96,7 @@ internal fun LoanDetailScreen(
     isPaymentLoading: Boolean = false,
     onGenerateDocument: ((Long, String) -> Unit)? = null,
     isDocumentGenerating: Boolean = false,
+    onEditLoan: (() -> Unit)? = null,
 ) {
     val loan = detail?.summary ?: fallbackLoan
 
@@ -139,7 +141,7 @@ internal fun LoanDetailScreen(
             start = 20.dp,
             end = 20.dp,
             top = 20.dp,
-            bottom = if (canPay) 96.dp else 28.dp,
+            bottom = if (canPay && onEditLoan != null) 168.dp else if (canPay || onEditLoan != null) 96.dp else 28.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
@@ -217,27 +219,32 @@ internal fun LoanDetailScreen(
         }
     }
 
-        if (canPay) {
-            ExtendedFloatingActionButton(
-                onClick = { showPaymentDialog = true },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(20.dp),
-                containerColor = PrimaryContainer,
-                contentColor = Color.White,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Add,
-                        contentDescription = null,
-                    )
-                },
-                text = {
-                    Text(
-                        text = "Registrar pago",
-                        fontWeight = FontWeight.Bold,
-                    )
-                },
-            )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
+            if (onEditLoan != null) {
+                ExtendedFloatingActionButton(
+                    onClick = onEditLoan,
+                    containerColor = Color(0xFF2E6DA4),
+                    contentColor = Color.White,
+                    icon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                    text = { Text("Editar préstamo", fontWeight = FontWeight.Bold) },
+                )
+            }
+
+            if (canPay) {
+                ExtendedFloatingActionButton(
+                    onClick = { showPaymentDialog = true },
+                    containerColor = PrimaryContainer,
+                    contentColor = Color.White,
+                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                    text = { Text("Registrar pago", fontWeight = FontWeight.Bold) },
+                )
+            }
         }
     }
 }
