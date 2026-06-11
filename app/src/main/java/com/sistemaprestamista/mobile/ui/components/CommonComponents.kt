@@ -97,3 +97,25 @@ fun rememberCurrency(): NumberFormat {
         NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-DO"))
     }
 }
+
+/** Traduce la frecuencia de pago del API (daily/weekly/...) al español. */
+fun formatPaymentFrequency(frequency: String): String {
+    return when (frequency.trim().lowercase()) {
+        "daily" -> "Diario"
+        "weekly" -> "Semanal"
+        "biweekly" -> "Quincenal"
+        "monthly" -> "Mensual"
+        else -> frequency.replaceFirstChar { it.uppercase() }
+    }
+}
+
+/** Etiqueta tipo "Cuota semanal" para acompañar el monto de la cuota. */
+fun installmentFrequencyLabel(frequency: String): String {
+    return when (frequency.trim().lowercase()) {
+        "daily" -> "Cuota diaria"
+        "weekly" -> "Cuota semanal"
+        "biweekly" -> "Cuota quincenal"
+        "monthly" -> "Cuota mensual"
+        else -> "Cuota"
+    }
+}

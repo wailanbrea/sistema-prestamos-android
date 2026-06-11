@@ -198,6 +198,59 @@ class PrestamistaRepository(
         )
     }
 
+    /**
+     * Cobro desde back-office (Administrador): va directo al endpoint admin sin
+     * cola offline (el admin trabaja con conexión; un fallo se muestra y reintenta).
+     * Idempotente por mobileUuid igual que el flujo del cobrador.
+     */
+    fun registerAdminPayment(
+        loanId: Long,
+        amount: Double,
+        paymentDate: String,
+        paymentMethod: String,
+        mobileUuid: String,
+    ): PaymentReceipt {
+        return apiClient.adminRegisterPayment(
+            token = requiredToken(),
+            loanId = loanId,
+            amount = amount,
+            paymentDate = paymentDate,
+            paymentMethod = paymentMethod,
+            mobileUuid = mobileUuid,
+        )
+    }
+
+    fun generateLoanDocument(loanId: Long, documentType: String, viaAdmin: Boolean): com.sistemaprestamista.mobile.data.model.LoanDocument =
+        apiClient.generateLoanDocument(requiredToken(), loanId, documentType, viaAdmin)
+
+    fun adminCreateClient(input: com.sistemaprestamista.mobile.data.model.NewClientInput): ClientSummary =
+        apiClient.adminCreateClient(requiredToken(), input)
+
+    fun adminQuotes(): List<com.sistemaprestamista.mobile.data.model.LoanQuote> = apiClient.adminQuotes(requiredToken())
+
+    fun adminCreateQuote(
+        clientId: Long?,
+        amount: Double,
+        interestRate: Double,
+        interestType: String,
+        paymentFrequency: String,
+        calculationMethod: String,
+        termQuantity: Int,
+    ): com.sistemaprestamista.mobile.data.model.LoanQuote = apiClient.adminCreateQuote(
+        token = requiredToken(),
+        clientId = clientId,
+        amount = amount,
+        interestRate = interestRate,
+        interestType = interestType,
+        paymentFrequency = paymentFrequency,
+        calculationMethod = calculationMethod,
+        termQuantity = termQuantity,
+    )
+
+    fun adminQuote(quoteId: Long): com.sistemaprestamista.mobile.data.model.LoanQuote = apiClient.adminQuote(requiredToken(), quoteId)
+
+    fun adminDeleteQuote(quoteId: Long) = apiClient.adminDeleteQuote(requiredToken(), quoteId)
+
     fun syncPendingPayments(): PendingPaymentSyncResult {
         if (!hasSavedSession()) {
             return PendingPaymentSyncResult(

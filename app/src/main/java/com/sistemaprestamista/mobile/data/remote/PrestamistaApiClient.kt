@@ -19,15 +19,19 @@ import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentDetail
 import com.sistemaprestamista.mobile.data.model.InstallmentPaymentLine
 import com.sistemaprestamista.mobile.data.model.LoanDetail
+import com.sistemaprestamista.mobile.data.model.LoanDocument
 import com.sistemaprestamista.mobile.data.model.LoanFinancialSummary
 import com.sistemaprestamista.mobile.data.model.LoanSummary
+import com.sistemaprestamista.mobile.data.model.LoanQuote
 import com.sistemaprestamista.mobile.data.model.LoginResult
 import com.sistemaprestamista.mobile.data.model.MapClient
+import com.sistemaprestamista.mobile.data.model.NewClientInput
 import com.sistemaprestamista.mobile.data.model.Page
 import com.sistemaprestamista.mobile.data.model.PaymentDetailLine
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentCommission
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
+import com.sistemaprestamista.mobile.data.model.QuoteInstallment
 import com.sistemaprestamista.mobile.data.model.RouteClientStop
 import com.sistemaprestamista.mobile.data.model.RouteTrackingStop
 import com.sistemaprestamista.mobile.data.model.UserProfile
@@ -293,7 +297,146 @@ class PrestamistaApiClient(
         return parsePayment(json.getJSONObject("data"))
     }
 
+    /**
+     * Genera (o reusa) un documento legal del préstamo. `viaAdmin` decide el
+     * prefijo de ruta: back-office (admin/) o cartera del cobrador (collector/).
+     */
+    fun generateLoanDocument(
+        token: String,
+        loanId: Long,
+        documentType: String,
+        viaAdmin: Boolean,
+    ): LoanDocument {
+        val prefix = if (viaAdmin) "admin" else "collector"
+        val json = request(
+            path = "$prefix/loans/$loanId/documents",
+            method = "POST",
+            token = token,
+            body = JSONObject().put("document_type", documentType),
+        )
+
+        return parseLoanDocument(json.getJSONObject("data"))
+    }
+
     // --- Back-office / administrador ---
+
+    fun adminRegisterPayment(
+        token: String,
+        loanId: Long,
+        amount: Double,
+        paymentDate: String,
+        paymentMethod: String,
+        mobileUuid: String,
+    ): PaymentReceipt {
+        val payload = JSONObject()
+            .put("loan_id", loanId)
+            .put("amount", amount)
+            .put("payment_date", paymentDate)
+            .put("payment_method", paymentMethod)
+            .put("mobile_uuid", mobileUuid)
+
+        val json = request(
+            path = "admin/payments",
+            method = "POST",
+            token = token,
+            body = payload,
+        )
+
+        return parsePayment(json.getJSONObject("data"))
+    }
+
+    fun adminCreateClient(token: String, input: NewClientInput): ClientSummary {
+        val payload = JSONObject()
+            .put("full_name", input.fullName)
+            .put("address", input.address)
+            .put("status", input.status)
+            .put("risk_level", input.riskLevel)
+
+        input.identification?.takeIf { it.isNotBlank() }?.let { payload.put("identification", it) }
+        input.phone?.takeIf { it.isNotBlank() }?.let { payload.put("phone", it) }
+        input.secondaryPhone?.takeIf { it.isNotBlank() }?.let { payload.put("secondary_phone", it) }
+        input.email?.takeIf { it.isNotBlank() }?.let { payload.put("email", it) }
+        input.locationReference?.takeIf { it.isNotBlank() }?.let { payload.put("location_reference", it) }
+        input.latitude?.let { payload.put("latitude", it) }
+        input.longitude?.let { payload.put("longitude", it) }
+        input.workplace?.takeIf { it.isNotBlank() }?.let { payload.put("workplace", it) }
+        input.workplacePhone?.takeIf { it.isNotBlank() }?.let { payload.put("workplace_phone", it) }
+        input.workplaceAddress?.takeIf { it.isNotBlank() }?.let { payload.put("workplace_address", it) }
+        input.monthlyIncome?.let { payload.put("monthly_income", it) }
+        input.notes?.takeIf { it.isNotBlank() }?.let { payload.put("notes", it) }
+
+        val json = request(path = "admin/clients", method = "POST", token = token, body = payload)
+        return parseClient(json.getJSONObject("data"))
+    }
+
+    fun adminQuotes(token: String): List<LoanQuote> {
+        val json = request(path = "admin/quotes?per_page=50", method = "GET", token = token)
+        return json.optJSONArray("data").mapObjects(::parseQuote)
+    }
+
+    fun adminCreateQuote(
+        token: String,
+        clientId: Long?,
+        amount: Double,
+        interestRate: Double,
+        interestType: String,
+        paymentFrequency: String,
+        calculationMethod: String,
+        termQuantity: Int,
+    ): LoanQuote {
+        val payload = JSONObject()
+            .put("amount", amount)
+            .put("interest_rate", interestRate)
+            .put("interest_type", interestType)
+            .put("payment_frequency", paymentFrequency)
+            .put("calculation_method", calculationMethod)
+            .put("term_quantity", termQuantity)
+
+        clientId?.let { payload.put("client_id", it) }
+
+        val json = request(path = "admin/quotes", method = "POST", token = token, body = payload)
+        return parseQuote(json.getJSONObject("data"))
+    }
+
+    fun adminQuote(token: String, quoteId: Long): LoanQuote {
+        val json = request(path = "admin/quotes/$quoteId", method = "GET", token = token)
+        return parseQuote(json.getJSONObject("data"))
+    }
+
+    fun adminDeleteQuote(token: String, quoteId: Long) {
+        request(path = "admin/quotes/$quoteId", method = "DELETE", token = token)
+    }
+
+    private fun parseQuote(json: JSONObject): LoanQuote {
+        val client = json.optJSONObject("client")
+
+        return LoanQuote(
+            id = json.getLong("id"),
+            clientId = client?.optLong("id"),
+            clientName = client?.nullableString("full_name"),
+            amount = json.optDouble("amount", 0.0),
+            interestRate = json.optDouble("interest_rate", 0.0),
+            interestType = json.optString("interest_type"),
+            paymentFrequency = json.optString("payment_frequency"),
+            calculationMethod = json.optString("calculation_method"),
+            termQuantity = json.optInt("term_quantity", 0),
+            status = json.optString("status"),
+            startDate = json.nullableString("start_date"),
+            firstPaymentDate = json.nullableString("first_payment_date"),
+            createdAt = json.nullableString("created_at"),
+            installmentAmount = json.optDouble("installment_amount", 0.0),
+            totalInterest = json.optDouble("total_interest", 0.0),
+            totalAmount = json.optDouble("total_amount", 0.0),
+            installments = json.optJSONArray("installments").mapObjects { item ->
+                QuoteInstallment(
+                    number = item.optInt("number", 0),
+                    principal = item.optDouble("principal", 0.0),
+                    interest = item.optDouble("interest", 0.0),
+                    amount = item.optDouble("amount", 0.0),
+                )
+            },
+        )
+    }
 
     fun adminClients(token: String, search: String?): List<ClientSummary> {
         val query = buildString {
@@ -515,6 +658,7 @@ class PrestamistaApiClient(
         val request = when (method) {
             "GET" -> requestBuilder.get().build()
             "POST" -> requestBuilder.post((body ?: JSONObject()).toString().toRequestBody(jsonMediaType)).build()
+            "DELETE" -> requestBuilder.delete().build()
             else -> error("Unsupported HTTP method $method")
         }
 
@@ -723,6 +867,19 @@ class PrestamistaApiClient(
             ),
             installments = json.optJSONArray("installments").mapObjects(::parseInstallment),
             payments = json.optJSONArray("payments").mapObjects(::parsePayment),
+            documents = json.optJSONArray("documents").mapObjects(::parseLoanDocument),
+        )
+    }
+
+    private fun parseLoanDocument(json: JSONObject): LoanDocument {
+        return LoanDocument(
+            documentType = json.optString("document_type"),
+            label = json.optString("label"),
+            generated = json.optBoolean("generated", false),
+            documentId = if (json.has("document_id") && !json.isNull("document_id")) json.getLong("document_id") else null,
+            title = json.nullableString("title"),
+            downloadUrl = json.nullableString("download_url"),
+            createdAt = json.nullableString("created_at"),
         )
     }
 
@@ -813,8 +970,11 @@ class PrestamistaApiClient(
             lateLoans = json.optInt("late_loans", 0),
             totalPrincipal = json.optDouble("total_principal", 0.0),
             remainingBalance = json.optDouble("remaining_balance", 0.0),
+            pendingPrincipal = json.optDouble("pending_principal", 0.0),
+            pendingInterest = json.optDouble("pending_interest", 0.0),
             pendingInstallments = json.optInt("pending_installments", 0),
             lateInstallments = json.optInt("late_installments", 0),
+            maxDaysLate = json.optInt("max_days_late", 0),
             totalPaid = json.optDouble("total_paid", 0.0),
             lastPaymentDate = json.nullableString("last_payment_date"),
         )

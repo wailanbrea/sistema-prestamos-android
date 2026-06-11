@@ -1,13 +1,12 @@
 package com.sistemaprestamista.mobile.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,17 +23,14 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Mail
-import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.outlined.Work
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -43,33 +39,32 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
+import com.sistemaprestamista.mobile.ui.components.installmentFrequencyLabel
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
+import java.time.temporal.ChronoUnit
 
-private val ScreenBackground = Color(0xFFF4F7FB)
+private val ScreenBackground = Color(0xFFF8FAFC)
 private val CardBackground = Color(0xFFFFFFFF)
-private val Primary = Color(0xFF00386C)
-private val PrimaryContainer = Color(0xFF1A4F8B)
-private val PrimaryFixed = Color(0xFFD5E3FF)
-private val Secondary = Color(0xFF505F76)
-private val SecondaryContainer = Color(0xFFD0E1FB)
-private val SurfaceContainer = Color(0xFFEDEDF3)
-private val SurfaceContainerLow = Color(0xFFF3F3F9)
-private val SurfaceContainerHigh = Color(0xFFE8E8ED)
-private val TextMain = Color(0xFF1A1C20)
-private val TextVariant = Color(0xFF424750)
-private val Outline = Color(0xFF737781)
-private val OutlineVariant = Color(0xFFC2C6D1)
-private val Success = Color(0xFF005236)
-private val SuccessSoft = Color(0xFF6FFBBE)
-private val Error = Color(0xFFBA1A1A)
-private val ErrorContainer = Color(0xFFFFDAD6)
-private val Orange = Color(0xFFEA580C)
+private val Primary = Color(0xFF0F4C81)
+private val PrimarySoft = Color(0xFFE3EDF7)
+private val Success = Color(0xFF16A34A)
+private val SuccessSoft = Color(0xFFDCFCE7)
+private val Danger = Color(0xFFDC2626)
+private val DangerSoft = Color(0xFFFEE2E2)
+private val Warning = Color(0xFFD97706)
+private val WarningSoft = Color(0xFFFEF3C7)
+private val TextMain = Color(0xFF0F172A)
+private val TextVariant = Color(0xFF64748B)
+private val DividerColor = Color(0xFFE2E8F0)
 
 @Composable
 internal fun ClientDetailScreen(
@@ -95,26 +90,19 @@ internal fun ClientDetailScreen(
     val loans = detail?.loans.orEmpty()
     val installments = detail?.pendingInstallments.orEmpty()
     val recentPayments = detail?.recentPayments.orEmpty()
-
-    val activeBalance = detail?.financialSummary?.remainingBalance
-        ?: loans.sumOf { it.remainingBalance }
-
-    val pendingAmount = installments.sumOf { it.pendingAmount }
-
-    val totalPaid = detail?.financialSummary?.totalPaid ?: 0.0
-    val lateInstallments = detail?.financialSummary?.lateInstallments ?: 0
+    val financial = detail?.financialSummary
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(ScreenBackground),
         contentPadding = PaddingValues(
-            start = 20.dp,
-            end = 20.dp,
-            top = 20.dp,
-            bottom = 28.dp,
+            start = 16.dp,
+            end = 16.dp,
+            top = 14.dp,
+            bottom = 24.dp,
         ),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
             ClientHeaderCard(
@@ -129,33 +117,44 @@ internal fun ClientDetailScreen(
             }
         }
 
-        item {
-            FinancialSummaryGrid(
-                balance = currency.format(activeBalance),
-                pending = currency.format(pendingAmount),
-                paid = currency.format(totalPaid),
-                moras = lateInstallments.toString(),
-            )
-        }
-
-        item {
-            SectionHeader(
-                title = "Préstamos activos",
-                action = if (loans.isNotEmpty()) "Ver todos" else null,
-            )
-        }
-
         if (loans.isEmpty()) {
+            item {
+                SectionHeader(title = "Préstamo activo")
+            }
+
             item {
                 EmptySectionCard("Este cliente no tiene préstamos asignados al cobrador.")
             }
         } else {
+            item {
+                SectionHeader(title = if (loans.size > 1) "Préstamos activos" else "Préstamo activo")
+            }
+
             items(loans, key = { it.id }) { loan ->
-                LoanCard(
+                ActiveLoanCard(
                     loan = loan,
-                    installmentAmount = currency.format(loan.installmentAmount),
-                    remainingBalance = currency.format(loan.remainingBalance),
+                    currencyFormat = { currency.format(it) },
+                    nextDueDate = installments
+                        .filter { it.loanId == loan.id }
+                        .mapNotNull { it.dueDate }
+                        .minOrNull(),
                     onOpenLoan = onOpenLoan,
+                )
+            }
+        }
+
+        if (financial != null) {
+            item {
+                SectionHeader(title = "Estado financiero del cliente")
+            }
+
+            item {
+                FinancialStatusCard(
+                    balance = currency.format(financial.remainingBalance),
+                    pendingPrincipal = currency.format(financial.pendingPrincipal),
+                    pendingInterest = currency.format(financial.pendingInterest),
+                    pendingInstallments = financial.pendingInstallments,
+                    daysLate = financial.maxDaysLate,
                 )
             }
         }
@@ -178,6 +177,22 @@ internal fun ClientDetailScreen(
             }
         }
 
+        if (financial != null) {
+            item {
+                SectionHeader(title = "Resumen del cliente")
+            }
+
+            item {
+                ClientSummaryCard(
+                    activeLoans = financial.activeLoans,
+                    lateLoans = financial.lateLoans,
+                    totalPrincipal = currency.format(financial.totalPrincipal),
+                    totalPaid = currency.format(financial.totalPaid),
+                    lastPaymentDate = formatShortDate(financial.lastPaymentDate),
+                )
+            }
+        }
+
         if (recentPayments.isNotEmpty()) {
             item {
                 SectionHeader(title = "Últimos pagos")
@@ -193,6 +208,10 @@ internal fun ClientDetailScreen(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Encabezado del cliente
+// ---------------------------------------------------------------------------
+
 @Composable
 private fun ClientHeaderCard(
     client: ClientSummary,
@@ -200,49 +219,49 @@ private fun ClientHeaderCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Nombre a ancho completo: nunca compite con badges ni acciones.
+            Text(
+                text = client.fullName,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = TextMain,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        text = client.fullName,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Primary,
-                        maxLines = 2,
-                    )
+                if (!client.identification.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Fingerprint,
+                            contentDescription = null,
+                            tint = TextVariant,
+                            modifier = Modifier.size(16.dp),
+                        )
 
-                    if (!client.identification.isNullOrBlank()) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Fingerprint,
-                                contentDescription = null,
-                                tint = TextVariant,
-                                modifier = Modifier.size(18.dp),
-                            )
-
-                            Text(
-                                text = "ID: ${client.identification}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextVariant,
-                            )
-                        }
+                        Text(
+                            text = "Cliente ${client.identification}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
 
@@ -256,31 +275,16 @@ private fun ClientHeaderCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(OutlineVariant.copy(alpha = 0.45f)),
+                    .background(DividerColor),
             )
 
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                ClientInfoLine(
-                    icon = Icons.Outlined.Call,
-                    value = client.phone,
-                )
-
-                ClientInfoLine(
-                    icon = Icons.Outlined.LocationOn,
-                    value = client.address,
-                )
-
-                ClientInfoLine(
-                    icon = Icons.Outlined.Work,
-                    value = detail?.workplace,
-                )
-
-                ClientInfoLine(
-                    icon = Icons.Outlined.Mail,
-                    value = detail?.email,
-                )
+                ClientInfoLine(icon = Icons.Outlined.Call, value = client.phone)
+                ClientInfoLine(icon = Icons.Outlined.LocationOn, value = client.address)
+                ClientInfoLine(icon = Icons.Outlined.Work, value = detail?.workplace)
+                ClientInfoLine(icon = Icons.Outlined.Mail, value = detail?.email)
             }
         }
     }
@@ -296,20 +300,20 @@ private fun ClientInfoLine(
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(30.dp)
                 .clip(CircleShape)
-                .background(SurfaceContainer),
+                .background(PrimarySoft),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = Secondary,
-                modifier = Modifier.size(20.dp),
+                tint = Primary,
+                modifier = Modifier.size(17.dp),
             )
         }
 
@@ -318,6 +322,7 @@ private fun ClientInfoLine(
             style = MaterialTheme.typography.bodyMedium,
             color = TextVariant,
             maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -342,266 +347,132 @@ private fun ClientRiskBadge(
             normalizedStatus.contains("inactive")
 
     val background = when {
-        isDanger -> ErrorContainer
-        isPending -> SecondaryContainer
+        isDanger -> DangerSoft
+        isPending -> PrimarySoft
         else -> SuccessSoft
     }
 
     val textColor = when {
-        isDanger -> Color(0xFF93000A)
-        isPending -> Secondary
-        else -> Success
-    }
-
-    val dotColor = when {
-        isDanger -> Error
+        isDanger -> Danger
         isPending -> Primary
         else -> Success
     }
 
-    Box(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(background)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .clip(CircleShape)
-                    .background(dotColor),
-            )
-
-            Text(
-                text = buildString {
-                    append(status.replaceFirstChar { it.uppercase() })
-                    if (riskLevel.isNotBlank()) {
-                        append(" · riesgo ")
-                        append(riskLevel.lowercase())
-                    }
-                },
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = textColor,
-                maxLines = 1,
-            )
-        }
-    }
+    StatusBadge(
+        text = translateClientStatus(status),
+        background = background,
+        textColor = textColor,
+        dotColor = textColor,
+    )
 }
 
-@Composable
-private fun FinancialSummaryGrid(
-    balance: String,
-    pending: String,
-    paid: String,
-    moras: String,
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            FinancialMetricCard(
-                title = "Balance",
-                value = balance,
-                valueColor = Primary,
-                modifier = Modifier.weight(1f),
-            )
-
-            FinancialMetricCard(
-                title = "Pendiente",
-                value = pending,
-                valueColor = Orange,
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            FinancialMetricCard(
-                title = "Pagado",
-                value = paid,
-                valueColor = Success,
-                modifier = Modifier.weight(1f),
-            )
-
-            FinancialMetricCard(
-                title = "Moras",
-                value = moras,
-                valueColor = Error,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
+// ---------------------------------------------------------------------------
+// Préstamo activo (tarjeta principal)
+// ---------------------------------------------------------------------------
 
 @Composable
-private fun FinancialMetricCard(
-    title: String,
-    value: String,
-    valueColor: Color,
-    modifier: Modifier = Modifier,
-) {
-    Card(
-        modifier = modifier.height(96.dp),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelSmall,
-                color = TextVariant,
-            )
-
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = valueColor,
-                maxLines = 1,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(
-    title: String,
-    action: String? = null,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = Primary,
-        )
-
-        if (action != null) {
-            Text(
-                text = action,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = Primary,
-            )
-        }
-    }
-}
-
-@Composable
-private fun LoanCard(
+private fun ActiveLoanCard(
     loan: LoanSummary,
-    installmentAmount: String,
-    remainingBalance: String,
+    currencyFormat: (Double) -> String,
+    nextDueDate: String?,
     onOpenLoan: (Long) -> Unit,
 ) {
+    val isDanger = loan.status.lowercase().let {
+        it.contains("mora") || it.contains("late") || it.contains("atras")
+    }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenLoan(loan.id) },
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = "#${loan.loanNumber}",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Secondary,
-                    )
+                Text(
+                    text = "Préstamo #${loan.loanNumber}",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = TextVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
 
-                    Text(
-                        text = "Préstamo activo",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = TextMain,
-                    )
-                }
+                StatusBadge(
+                    text = translateLoanStatus(loan.status),
+                    background = if (isDanger) DangerSoft else SuccessSoft,
+                    textColor = if (isDanger) Danger else Success,
+                    dotColor = if (isDanger) Danger else Success,
+                )
+            }
 
-                GenericStatusBadge(
-                    text = loan.status,
-                    isDanger = loan.status.lowercase().contains("mora") ||
-                            loan.status.lowercase().contains("late") ||
-                            loan.status.lowercase().contains("atras"),
+            // El balance pendiente es el dato protagonista de la tarjeta.
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "Balance pendiente",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextVariant,
+                )
+
+                Text(
+                    text = currencyFormat(loan.remainingBalance),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Primary,
+                    maxLines = 1,
                 )
             }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 DataBlock(
-                    label = "Cuota",
-                    value = installmentAmount,
+                    label = installmentFrequencyLabel(loan.paymentFrequency),
+                    value = currencyFormat(loan.installmentAmount),
                     modifier = Modifier.weight(1f),
                 )
 
                 DataBlock(
-                    label = "Balance",
-                    value = remainingBalance,
+                    label = "Próximo pago",
+                    value = formatShortDate(nextDueDate) ?: "—",
                     modifier = Modifier.weight(1f),
                 )
             }
 
-            DataBlock(
-                label = "Frecuencia",
-                value = loan.paymentFrequency,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Button(
-                onClick = { onOpenLoan(loan.id) },
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Primary,
-                    contentColor = Color.White,
-                ),
+                    .height(1.dp)
+                    .background(DividerColor),
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End,
             ) {
                 Text(
                     text = "Ver préstamo",
+                    style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
+                    color = Primary,
                 )
-
-                Spacer(Modifier.size(8.dp))
 
                 Icon(
                     imageVector = Icons.Outlined.ChevronRight,
                     contentDescription = null,
+                    tint = Primary,
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -609,31 +480,104 @@ private fun LoanCard(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Estado financiero del cliente
+// ---------------------------------------------------------------------------
+
 @Composable
-private fun DataBlock(
+private fun FinancialStatusCard(
+    balance: String,
+    pendingPrincipal: String,
+    pendingInterest: String,
+    pendingInstallments: Int,
+    daysLate: Int,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SummaryRow(label = "Balance pendiente", value = balance, valueColor = Primary, emphasized = true)
+            SummaryRow(label = "Capital pendiente", value = pendingPrincipal)
+            SummaryRow(label = "Interés pendiente", value = pendingInterest)
+            SummaryRow(label = "Cuotas pendientes", value = pendingInstallments.toString())
+            SummaryRow(
+                label = "Días de atraso",
+                value = if (daysLate > 0) "$daysLate días" else "Al día",
+                valueColor = if (daysLate > 0) Danger else Success,
+                emphasized = daysLate > 0,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ClientSummaryCard(
+    activeLoans: Int,
+    lateLoans: Int,
+    totalPrincipal: String,
+    totalPaid: String,
+    lastPaymentDate: String?,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SummaryRow(label = "Préstamos activos", value = activeLoans.toString())
+            SummaryRow(
+                label = "Préstamos en mora",
+                value = lateLoans.toString(),
+                valueColor = if (lateLoans > 0) Danger else TextMain,
+            )
+            SummaryRow(label = "Total prestado", value = totalPrincipal)
+            SummaryRow(label = "Total cobrado", value = totalPaid, valueColor = Success)
+            SummaryRow(label = "Último pago", value = lastPaymentDate ?: "Sin pagos")
+        }
+    }
+}
+
+@Composable
+private fun SummaryRow(
     label: String,
     value: String,
-    modifier: Modifier = Modifier,
+    valueColor: Color = TextMain,
+    emphasized: Boolean = false,
 ) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(3.dp),
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = TextVariant,
         )
 
         Text(
             text = value,
-            style = MaterialTheme.typography.bodyMedium,
+            style = if (emphasized) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
-            color = TextMain,
+            color = valueColor,
             maxLines = 1,
         )
     }
 }
+
+// ---------------------------------------------------------------------------
+// Próximos vencimientos
+// ---------------------------------------------------------------------------
 
 @Composable
 private fun InstallmentCard(
@@ -641,68 +585,115 @@ private fun InstallmentCard(
     pendingAmount: String,
     onOpenInstallment: (Long) -> Unit,
 ) {
+    val daysUntilDue = daysUntilDue(installment.dueDate)
+    val isOverdue = installment.daysLate > 0 || (daysUntilDue != null && daysUntilDue < 0)
+    val isUrgent = !isOverdue && daysUntilDue != null && daysUntilDue <= 3
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenInstallment(installment.id) },
+        shape = RoundedCornerShape(18.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(
+            DateBadge(
+                dueDate = installment.dueDate,
+                isOverdue = isOverdue,
+                isUrgent = isUrgent,
+            )
+
+            Column(
                 modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                DateBadge(
-                    dueDate = installment.dueDate,
-                )
-
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    Text(
-                        text = "Cuota #${installment.installmentNumber}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = TextMain,
-                    )
-
-                    Text(
-                        text = "$pendingAmount · ${if (installment.daysLate > 0) "${installment.daysLate} días atraso" else installment.status}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextVariant,
-                        maxLines = 1,
-                    )
-                }
-            }
-
-            OutlinedButton(
-                onClick = { onOpenInstallment(installment.id) },
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = Primary,
-                    containerColor = SurfaceContainerHigh,
-                ),
-                border = null,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
-                    text = "Ver cuota",
+                    text = "Cuota #${installment.installmentNumber}",
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
+                    color = TextMain,
+                )
+
+                Text(
+                    text = pendingAmount,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isOverdue) Danger else Primary,
+                    maxLines = 1,
+                )
+
+                InstallmentUrgencyLabel(
+                    installment = installment,
+                    daysUntilDue = daysUntilDue,
+                    isOverdue = isOverdue,
+                    isUrgent = isUrgent,
                 )
             }
+
+            Icon(
+                imageVector = Icons.Outlined.ChevronRight,
+                contentDescription = "Ver detalle",
+                tint = TextVariant,
+                modifier = Modifier.size(22.dp),
+            )
         }
+    }
+}
+
+@Composable
+private fun InstallmentUrgencyLabel(
+    installment: InstallmentSummary,
+    daysUntilDue: Long?,
+    isOverdue: Boolean,
+    isUrgent: Boolean,
+) {
+    val (text, color) = when {
+        isOverdue -> {
+            val days = if (installment.daysLate > 0) installment.daysLate.toLong() else -(daysUntilDue ?: 0)
+            "Vencida · $days ${if (days == 1L) "día" else "días"} de atraso" to Danger
+        }
+
+        isUrgent && daysUntilDue == 0L -> "Vence hoy" to Warning
+        isUrgent -> "Vence en $daysUntilDue ${if (daysUntilDue == 1L) "día" else "días"}" to Warning
+        else -> translateInstallmentStatus(installment.status) to TextVariant
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (isOverdue || isUrgent) {
+            Icon(
+                imageVector = Icons.Outlined.Warning,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(13.dp),
+            )
+        }
+
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (isOverdue || isUrgent) FontWeight.Bold else FontWeight.Medium,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
 @Composable
 private fun DateBadge(
     dueDate: String?,
+    isOverdue: Boolean = false,
+    isUrgent: Boolean = false,
 ) {
     val cleanDate = dueDate.orEmpty()
     val day = cleanDate.takeLast(2).ifBlank { "--" }
@@ -711,11 +702,23 @@ private fun DateBadge(
         else -> "---"
     }
 
+    val background = when {
+        isOverdue -> DangerSoft
+        isUrgent -> WarningSoft
+        else -> PrimarySoft
+    }
+
+    val contentColor = when {
+        isOverdue -> Danger
+        isUrgent -> Warning
+        else -> Primary
+    }
+
     Box(
         modifier = Modifier
-            .size(52.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(SecondaryContainer),
+            .size(50.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(background),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -724,38 +727,24 @@ private fun DateBadge(
         ) {
             Text(
                 text = day,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = Primary,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = contentColor,
             )
 
             Text(
                 text = month,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = Primary,
+                color = contentColor,
             )
         }
     }
 }
 
-private fun String.toMonthLabel(): String {
-    return when (this) {
-        "01" -> "Ene"
-        "02" -> "Feb"
-        "03" -> "Mar"
-        "04" -> "Abr"
-        "05" -> "May"
-        "06" -> "Jun"
-        "07" -> "Jul"
-        "08" -> "Ago"
-        "09" -> "Sep"
-        "10" -> "Oct"
-        "11" -> "Nov"
-        "12" -> "Dic"
-        else -> "---"
-    }
-}
+// ---------------------------------------------------------------------------
+// Últimos pagos
+// ---------------------------------------------------------------------------
 
 @Composable
 private fun RecentPaymentsCard(
@@ -764,8 +753,8 @@ private fun RecentPaymentsCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
     ) {
         Column(
@@ -792,32 +781,32 @@ private fun RecentPaymentRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Row(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
-                        .background(Success),
+                        .background(SuccessSoft),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.CheckCircle,
                         contentDescription = null,
-                        tint = SuccessSoft,
-                        modifier = Modifier.size(24.dp),
+                        tint = Success,
+                        modifier = Modifier.size(22.dp),
                     )
                 }
 
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Text(
                         text = "#${payment.receiptNumber}",
@@ -827,26 +816,19 @@ private fun RecentPaymentRow(
                     )
 
                     Text(
-                        text = payment.paymentDate ?: "-",
+                        text = formatShortDate(payment.paymentDate) ?: "-",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextVariant,
                     )
                 }
             }
 
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = amount,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Success,
-                )
-
-                SmallStatusBadge(payment.status)
-            }
+            Text(
+                text = amount,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = Success,
+            )
         }
 
         if (showDivider) {
@@ -854,52 +836,88 @@ private fun RecentPaymentRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(OutlineVariant.copy(alpha = 0.45f)),
+                    .background(DividerColor),
             )
         }
     }
 }
 
+// ---------------------------------------------------------------------------
+// Componentes compartidos de la pantalla
+// ---------------------------------------------------------------------------
+
 @Composable
-private fun GenericStatusBadge(
-    text: String,
-    isDanger: Boolean,
+private fun SectionHeader(
+    title: String,
 ) {
-    Box(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(if (isDanger) ErrorContainer else Success)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center,
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = TextMain,
+    )
+}
+
+@Composable
+private fun DataBlock(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
-            text = text,
+            text = label,
             style = MaterialTheme.typography.labelSmall,
+            color = TextVariant,
+        )
+
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
-            color = if (isDanger) Error else SuccessSoft,
+            color = TextMain,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
 
 @Composable
-private fun SmallStatusBadge(
+private fun StatusBadge(
     text: String,
+    background: Color,
+    textColor: Color,
+    dotColor: Color,
 ) {
     Box(
         modifier = Modifier
             .clip(CircleShape)
-            .background(SecondaryContainer)
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .background(background)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = text.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = Secondary,
-            maxLines = 1,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(dotColor),
+            )
+
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = textColor,
+                maxLines = 1,
+            )
+        }
     }
 }
 
@@ -907,14 +925,14 @@ private fun SmallStatusBadge(
 private fun LoadingDetailCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -952,8 +970,8 @@ private fun ClientLoadingState() {
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            shape = RoundedCornerShape(24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             colors = CardDefaults.cardColors(containerColor = CardBackground),
         ) {
             Column(
@@ -993,8 +1011,8 @@ private fun ClientNotFoundState() {
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            shape = RoundedCornerShape(24.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             colors = CardDefaults.cardColors(containerColor = CardBackground),
         ) {
             Column(
@@ -1008,13 +1026,13 @@ private fun ClientNotFoundState() {
                     modifier = Modifier
                         .size(72.dp)
                         .clip(CircleShape)
-                        .background(ErrorContainer),
+                        .background(DangerSoft),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.SearchOff,
                         contentDescription = null,
-                        tint = Error,
+                        tint = Danger,
                         modifier = Modifier.size(36.dp),
                     )
                 }
@@ -1042,16 +1060,89 @@ private fun EmptySectionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        shape = RoundedCornerShape(18.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
-        border = CardDefaults.outlinedCardBorder(),
     ) {
         Text(
             text = message,
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(18.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = TextVariant,
         )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers de formato y traducción
+// ---------------------------------------------------------------------------
+
+private fun translateLoanStatus(status: String): String {
+    return when (status.trim().lowercase()) {
+        "active" -> "Activo"
+        "late" -> "En mora"
+        "completed", "paid" -> "Completado"
+        "pending", "pending_approval" -> "Pendiente"
+        "rejected" -> "Rechazado"
+        "cancelled", "canceled" -> "Cancelado"
+        else -> status.replaceFirstChar { it.uppercase() }
+    }
+}
+
+private fun translateClientStatus(status: String): String {
+    return when (status.trim().lowercase()) {
+        "active" -> "Activo"
+        "inactive" -> "Inactivo"
+        "blocked" -> "Bloqueado"
+        "late" -> "En mora"
+        else -> status.replaceFirstChar { it.uppercase() }
+    }
+}
+
+private fun translateInstallmentStatus(status: String): String {
+    return when (status.trim().lowercase()) {
+        "pending" -> "Pendiente"
+        "partial" -> "Pago parcial"
+        "late" -> "Atrasada"
+        "paid" -> "Pagada"
+        else -> status.replaceFirstChar { it.uppercase() }
+    }
+}
+
+/** Días que faltan para la fecha (negativo si ya pasó); null si no se puede interpretar. */
+private fun daysUntilDue(dueDate: String?): Long? {
+    if (dueDate.isNullOrBlank()) return null
+
+    return try {
+        ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.parse(dueDate.take(10)))
+    } catch (_: DateTimeParseException) {
+        null
+    }
+}
+
+/** "2026-06-09" → "09 Jun 2026". Devuelve null si la fecha viene vacía. */
+private fun formatShortDate(date: String?): String? {
+    val clean = date.orEmpty().take(10)
+    if (clean.length < 10) return date?.takeIf { it.isNotBlank() }
+
+    val month = clean.substring(5, 7).toMonthLabel()
+    return "${clean.substring(8, 10)} $month ${clean.substring(0, 4)}"
+}
+
+private fun String.toMonthLabel(): String {
+    return when (this) {
+        "01" -> "Ene"
+        "02" -> "Feb"
+        "03" -> "Mar"
+        "04" -> "Abr"
+        "05" -> "May"
+        "06" -> "Jun"
+        "07" -> "Jul"
+        "08" -> "Ago"
+        "09" -> "Sep"
+        "10" -> "Oct"
+        "11" -> "Nov"
+        "12" -> "Dic"
+        else -> "---"
     }
 }

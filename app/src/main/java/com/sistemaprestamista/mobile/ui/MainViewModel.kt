@@ -169,6 +169,14 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Mantiene el mismo mobile_uuid mientras un cobro idéntico (préstamo+monto+fecha) no
+     * se confirme. Si el primer intento llegó al servidor pero la respuesta se perdió (o el
+     * refresco posterior falló), el reintento del cobrador devuelve el pago ya registrado
+     * (idempotencia del backend) en vez de duplicarlo o rechazarlo por monto excedente.
+     */
+    private val paymentUuidByAttempt = mutableMapOf<String, String>()
+
     fun registerPayment(loanId: Long, amountText: String, paymentMethod: String) {
         val amount = amountText.toDoubleOrNull()
         if (amount == null || amount <= 0) {
@@ -180,71 +188,44 @@ class MainViewModel(
             return
         }
 
+        val paymentDate = LocalDate.now().toString()
+        val attemptKey = "$loanId|$amount|$paymentDate"
+        val mobileUuid = paymentUuidByAttempt.getOrPut(attemptKey) { UUID.randomUUID().toString() }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null, lastPaymentReceipt = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
-                    val result = repository.registerCollectorPayment(
+                    repository.registerCollectorPayment(
                         loanId = loanId,
                         amount = amount,
-                        paymentDate = LocalDate.now().toString(),
+                        paymentDate = paymentDate,
                         paymentMethod = paymentMethod,
-                        mobileUuid = UUID.randomUUID().toString(),
+                        mobileUuid = mobileUuid,
                     )
-                    when (result) {
-                        is PaymentRegistrationResult.Sent -> {
-                            // Refresco selectivo: un pago solo afecta totales del cobrador, el
-                            // préstamo cobrado (saldo), sus cuotas y el historial. Recargamos
-                            // únicamente eso en paralelo y reutilizamos el resto de la cartera
-                            // (clientes, mapa, rutas, sesión) en vez de recargar todo el workload.
-                            val current = uiState.value
-                            val collectorWorkload = coroutineScope {
-                                val summary = async(Dispatchers.IO) { repository.collectorSummary() }
-                                val loans = async(Dispatchers.IO) { repository.collectorLoans() }
-                                val installments = async(Dispatchers.IO) { repository.collectorInstallments() }
-                                val payments = async(Dispatchers.IO) { repository.collectorPayments() }
-                                CollectorWorkload(
-                                    summary = summary.await(),
-                                    clients = current.collectorClients,
-                                    loans = loans.await(),
-                                    installments = installments.await(),
-                                    payments = payments.await(),
-                                    mapClients = current.mapClients,
-                                    routes = current.collectorRoutes,
-                                    activeRouteSession = current.activeRouteSession,
-                                )
-                            }
-                            PaymentRegistrationOutcome.Sent(result.receipt, null, collectorWorkload)
-                        }
-                        is PaymentRegistrationResult.Queued -> PaymentRegistrationOutcome.Queued(result.pendingCount)
-                    }
                 }
-            }.onSuccess { outcome ->
-                when (outcome) {
-                    is PaymentRegistrationOutcome.Sent -> {
+            }.onSuccess { result ->
+                when (result) {
+                    is PaymentRegistrationResult.Sent -> {
+                        paymentUuidByAttempt.remove(attemptKey)
+                        // El cobro ya está confirmado por el servidor: el recibo se muestra
+                        // de inmediato. El refresco de la cartera va aparte para que un fallo
+                        // de red posterior no haga creer al cobrador que el pago falló.
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                dashboard = outcome.dashboard ?: it.dashboard,
-                                collectorSummary = outcome.collectorWorkload?.summary ?: it.collectorSummary,
-                                collectorClients = outcome.collectorWorkload?.clients ?: it.collectorClients,
-                                collectorLoans = outcome.collectorWorkload?.loans ?: it.collectorLoans,
-                                collectorInstallments = outcome.collectorWorkload?.installments ?: it.collectorInstallments,
-                                paymentHistory = outcome.collectorWorkload?.payments ?: it.paymentHistory,
-                                mapClients = outcome.collectorWorkload?.mapClients ?: it.mapClients,
-                                collectorRoutes = outcome.collectorWorkload?.routes ?: it.collectorRoutes,
-                                activeRouteSession = outcome.collectorWorkload?.activeRouteSession ?: it.activeRouteSession,
                                 pendingPaymentCount = repository.pendingPaymentCount(),
-                                lastPaymentReceipt = outcome.receipt,
-                                selectedPaymentDetail = outcome.receipt,
+                                lastPaymentReceipt = result.receipt,
+                                selectedPaymentDetail = result.receipt,
                             )
                         }
+                        refreshAfterPayment()
                     }
-                    is PaymentRegistrationOutcome.Queued -> {
+                    is PaymentRegistrationResult.Queued -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                pendingPaymentCount = outcome.pendingCount,
+                                pendingPaymentCount = result.pendingCount,
                                 successMessage = "Cobro guardado sin conexion. Se sincronizara automaticamente.",
                             )
                         }
@@ -252,6 +233,275 @@ class MainViewModel(
                 }
             }.onFailure { throwable ->
                 _uiState.update { it.copy(isLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /**
+     * Cobro desde back-office (Administrador): mismo contrato idempotente que el del
+     * cobrador, pero contra admin/payments y sin cola offline. Al confirmar, muestra
+     * el recibo y refresca el detalle del préstamo en un paso aparte.
+     */
+    fun registerAdminPayment(loanId: Long, amountText: String, paymentMethod: String) {
+        val amount = amountText.toDoubleOrNull()
+        if (amount == null || amount <= 0) {
+            _uiState.update { it.copy(errorMessage = "El monto debe ser mayor que cero.") }
+            return
+        }
+        if (paymentMethod.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Selecciona un metodo de pago.") }
+            return
+        }
+
+        val paymentDate = LocalDate.now().toString()
+        val attemptKey = "admin|$loanId|$amount|$paymentDate"
+        val mobileUuid = paymentUuidByAttempt.getOrPut(attemptKey) { UUID.randomUUID().toString() }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, errorMessage = null, lastPaymentReceipt = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.registerAdminPayment(
+                        loanId = loanId,
+                        amount = amount,
+                        paymentDate = paymentDate,
+                        paymentMethod = paymentMethod,
+                        mobileUuid = mobileUuid,
+                    )
+                }
+            }.onSuccess { receipt ->
+                paymentUuidByAttempt.remove(attemptKey)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        lastPaymentReceipt = receipt,
+                        selectedPaymentDetail = receipt,
+                    )
+                }
+                refreshAdminLoanAfterPayment(loanId)
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /**
+     * Genera (o reusa) un documento legal del préstamo y actualiza el detalle en
+     * pantalla. Usa la ruta admin si el usuario tiene cartera global; si no, la
+     * del cobrador (su propia cartera).
+     */
+    fun generateLoanDocument(loanId: Long, documentType: String) {
+        if (uiState.value.isDocumentGenerating) return
+
+        val viaAdmin = uiState.value.canManagePortfolio
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDocumentGenerating = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.generateLoanDocument(loanId, documentType, viaAdmin)
+                }
+            }.onSuccess { document ->
+                _uiState.update { current ->
+                    val detail = current.selectedLoanDetail
+                    val updatedDetail = if (detail?.summary?.id == loanId) {
+                        val documents = detail.documents
+                        detail.copy(
+                            documents = if (documents.any { it.documentType == document.documentType }) {
+                                documents.map { if (it.documentType == document.documentType) document else it }
+                            } else {
+                                documents + document
+                            },
+                        )
+                    } else {
+                        detail
+                    }
+
+                    current.copy(
+                        isDocumentGenerating = false,
+                        selectedLoanDetail = updatedDetail,
+                        successMessage = "${document.label} generado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isDocumentGenerating = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Alta de cliente desde back-office: mismo contrato que la web (clients.create). */
+    fun createAdminClient(input: com.sistemaprestamista.mobile.data.model.NewClientInput) {
+        if (uiState.value.isClientSaving) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isClientSaving = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminCreateClient(input) }
+            }.onSuccess { client ->
+                _uiState.update {
+                    it.copy(
+                        isClientSaving = false,
+                        adminClients = listOf(client) + it.adminClients,
+                        lastCreatedClientId = client.id,
+                        successMessage = "Cliente ${client.fullName} creado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isClientSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun loadAdminQuotes() {
+        if (uiState.value.isQuotesLoading) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isQuotesLoading = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminQuotes() }
+            }.onSuccess { quotes ->
+                _uiState.update { it.copy(isQuotesLoading = false, adminQuotes = quotes) }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isQuotesLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun createAdminQuote(
+        clientId: Long?,
+        amount: Double,
+        interestRate: Double,
+        interestType: String,
+        paymentFrequency: String,
+        calculationMethod: String,
+        termQuantity: Int,
+    ) {
+        if (uiState.value.isQuoteSaving) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isQuoteSaving = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.adminCreateQuote(
+                        clientId = clientId,
+                        amount = amount,
+                        interestRate = interestRate,
+                        interestType = interestType,
+                        paymentFrequency = paymentFrequency,
+                        calculationMethod = calculationMethod,
+                        termQuantity = termQuantity,
+                    )
+                }
+            }.onSuccess { quote ->
+                _uiState.update {
+                    it.copy(
+                        isQuoteSaving = false,
+                        adminQuotes = listOf(quote) + it.adminQuotes,
+                        selectedQuote = quote,
+                        lastCreatedQuoteId = quote.id,
+                        successMessage = "Cotización creada.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isQuoteSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Abre el detalle de una cotización (con cronograma completo desde el API). */
+    fun loadAdminQuote(quoteId: Long) {
+        val cached = uiState.value.adminQuotes.firstOrNull { it.id == quoteId }
+        if (cached != null && cached.installments.isNotEmpty()) {
+            _uiState.update { it.copy(selectedQuote = cached) }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDetailLoading = true, errorMessage = null, selectedQuote = cached) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminQuote(quoteId) }
+            }.onSuccess { quote ->
+                _uiState.update { it.copy(isDetailLoading = false, selectedQuote = quote) }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isDetailLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun deleteAdminQuote(quoteId: Long) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isQuoteSaving = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminDeleteQuote(quoteId) }
+            }.onSuccess {
+                _uiState.update {
+                    it.copy(
+                        isQuoteSaving = false,
+                        adminQuotes = it.adminQuotes.filterNot { quote -> quote.id == quoteId },
+                        selectedQuote = it.selectedQuote?.takeIf { quote -> quote.id != quoteId },
+                        successMessage = "Cotización eliminada.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isQuoteSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Limpia los marcadores de "recién creado" usados para navegar tras guardar. */
+    fun clearCreationMarkers() {
+        _uiState.update { it.copy(lastCreatedClientId = null, lastCreatedQuoteId = null) }
+    }
+
+    /** Recarga el detalle del préstamo cobrado y su fila en la cartera; un fallo se ignora. */
+    private fun refreshAdminLoanAfterPayment(loanId: Long) {
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminLoan(loanId) }
+            }.onSuccess { detail ->
+                _uiState.update { current ->
+                    current.copy(
+                        selectedLoanDetail = detail,
+                        adminLoans = current.adminLoans.map { if (it.id == loanId) detail.summary else it },
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Refresco selectivo tras un pago: un pago solo afecta totales del cobrador, el
+     * préstamo cobrado (saldo), sus cuotas y el historial. Recargamos únicamente eso en
+     * paralelo y reutilizamos el resto de la cartera (clientes, mapa, rutas, sesión).
+     * Si falla, se ignora: el pago ya está confirmado y la cartera se actualizará en el
+     * próximo refresco manual o de arranque.
+     */
+    private fun refreshAfterPayment() {
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    coroutineScope {
+                        val summary = async { repository.collectorSummary() }
+                        val loans = async { repository.collectorLoans() }
+                        val installments = async { repository.collectorInstallments() }
+                        val payments = async { repository.collectorPayments() }
+                        PostPaymentRefresh(
+                            summary = summary.await(),
+                            loans = loans.await(),
+                            installments = installments.await(),
+                            payments = payments.await(),
+                        )
+                    }
+                }
+            }.onSuccess { refresh ->
+                _uiState.update {
+                    it.copy(
+                        collectorSummary = refresh.summary,
+                        collectorLoans = refresh.loans,
+                        collectorInstallments = refresh.installments,
+                        paymentHistory = refresh.payments,
+                    )
+                }
             }
         }
     }
@@ -1260,13 +1510,10 @@ class MainViewModel(
         val realRoute: List<RoutePoint>,
     )
 
-    private sealed interface PaymentRegistrationOutcome {
-        data class Sent(
-            val receipt: com.sistemaprestamista.mobile.data.model.PaymentReceipt,
-            val dashboard: com.sistemaprestamista.mobile.data.model.DashboardSummary?,
-            val collectorWorkload: CollectorWorkload?,
-        ) : PaymentRegistrationOutcome
-
-        data class Queued(val pendingCount: Int) : PaymentRegistrationOutcome
-    }
+    private data class PostPaymentRefresh(
+        val summary: com.sistemaprestamista.mobile.data.model.CollectorSummary,
+        val loans: List<com.sistemaprestamista.mobile.data.model.LoanSummary>,
+        val installments: List<com.sistemaprestamista.mobile.data.model.InstallmentSummary>,
+        val payments: List<com.sistemaprestamista.mobile.data.model.PaymentReceipt>,
+    )
 }

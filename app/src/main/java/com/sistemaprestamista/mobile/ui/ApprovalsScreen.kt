@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.LoanSummary
+import com.sistemaprestamista.mobile.ui.components.formatPaymentFrequency
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
 
 private val ScreenBackground = Color(0xFFF4F7FB)
@@ -146,7 +147,7 @@ private fun ApprovalCard(
                         maxLines = 1,
                     )
                     Text(
-                        text = "${loan.loanNumber} · ${loan.paymentFrequency}",
+                        text = "${loan.loanNumber} · ${formatPaymentFrequency(loan.paymentFrequency)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextMuted,
                     )

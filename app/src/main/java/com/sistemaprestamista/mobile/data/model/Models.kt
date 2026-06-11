@@ -78,8 +78,11 @@ data class ClientFinancialSummary(
     val lateLoans: Int,
     val totalPrincipal: Double,
     val remainingBalance: Double,
+    val pendingPrincipal: Double = 0.0,
+    val pendingInterest: Double = 0.0,
     val pendingInstallments: Int,
     val lateInstallments: Int,
+    val maxDaysLate: Int = 0,
     val totalPaid: Double,
     val lastPaymentDate: String?,
 )
@@ -209,6 +212,21 @@ data class LoanDetail(
     val financialSummary: LoanFinancialSummary,
     val installments: List<InstallmentSummary>,
     val payments: List<PaymentReceipt>,
+    val documents: List<LoanDocument> = emptyList(),
+)
+
+/**
+ * Documento legal del préstamo (contrato, pagaré, etc.). El backend lista todos
+ * los tipos soportados con su estado; `downloadUrl` solo existe si ya se generó.
+ */
+data class LoanDocument(
+    val documentType: String,
+    val label: String,
+    val generated: Boolean,
+    val documentId: Long?,
+    val title: String?,
+    val downloadUrl: String?,
+    val createdAt: String?,
 )
 
 data class InstallmentSummary(
@@ -358,6 +376,53 @@ data class CollectorPerformanceRow(
     val disbursed: Double,
     val activeAccounts: Int,
     val overdueAccounts: Int,
+)
+
+/** Datos del formulario de alta de cliente (mismo contrato que la web). */
+data class NewClientInput(
+    val fullName: String,
+    val identification: String? = null,
+    val phone: String? = null,
+    val secondaryPhone: String? = null,
+    val email: String? = null,
+    val address: String,
+    val locationReference: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val workplace: String? = null,
+    val workplacePhone: String? = null,
+    val workplaceAddress: String? = null,
+    val monthlyIncome: Double? = null,
+    val status: String = "active",
+    val riskLevel: String = "low",
+    val notes: String? = null,
+)
+
+data class LoanQuote(
+    val id: Long,
+    val clientId: Long?,
+    val clientName: String?,
+    val amount: Double,
+    val interestRate: Double,
+    val interestType: String,
+    val paymentFrequency: String,
+    val calculationMethod: String,
+    val termQuantity: Int,
+    val status: String,
+    val startDate: String?,
+    val firstPaymentDate: String?,
+    val createdAt: String?,
+    val installmentAmount: Double,
+    val totalInterest: Double,
+    val totalAmount: Double,
+    val installments: List<QuoteInstallment> = emptyList(),
+)
+
+data class QuoteInstallment(
+    val number: Int,
+    val principal: Double,
+    val interest: Double,
+    val amount: Double,
 )
 
 enum class PaymentMethod(

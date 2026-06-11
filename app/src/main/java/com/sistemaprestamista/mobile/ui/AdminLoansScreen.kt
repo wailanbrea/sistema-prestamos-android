@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.LoanSummary
+import com.sistemaprestamista.mobile.ui.components.formatPaymentFrequency
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
 
 private val ScreenBackground = Color(0xFFF4F7FB)
@@ -55,6 +57,7 @@ internal fun AdminLoansScreen(
     hasMore: Boolean = false,
     isLoadingMore: Boolean = false,
     onLoadMore: () -> Unit = {},
+    onOpenQuotes: (() -> Unit)? = null,
 ) {
     var query by remember { mutableStateOf("") }
     val currency = rememberCurrency()
@@ -75,18 +78,43 @@ internal fun AdminLoansScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = "Préstamos",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Primary,
-                )
-                Text(
-                    text = "Cartera de toda la empresa",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Secondary,
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Préstamos",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Primary,
+                    )
+                    Text(
+                        text = "Cartera de toda la empresa",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Secondary,
+                    )
+                }
+
+                if (onOpenQuotes != null) {
+                    OutlinedButton(
+                        onClick = onOpenQuotes,
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Calculate,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = Primary,
+                        )
+                        Text(
+                            text = " Cotizar",
+                            fontWeight = FontWeight.Bold,
+                            color = Primary,
+                        )
+                    }
+                }
             }
         }
 
@@ -172,7 +200,7 @@ private fun LoanRowCard(
                     maxLines = 1,
                 )
                 Text(
-                    text = "${loan.loanNumber} · ${loan.paymentFrequency}",
+                    text = "${loan.loanNumber} · ${formatPaymentFrequency(loan.paymentFrequency)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted,
                     maxLines = 1,

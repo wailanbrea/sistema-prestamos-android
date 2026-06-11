@@ -1,5 +1,7 @@
 package com.sistemaprestamista.mobile.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,34 +19,52 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AttachMoney
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Percent
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
+import com.sistemaprestamista.mobile.data.model.LoanDocument
 import com.sistemaprestamista.mobile.data.model.LoanSummary
+import com.sistemaprestamista.mobile.data.model.PaymentMethod
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
+import com.sistemaprestamista.mobile.ui.components.formatPaymentFrequency
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
 
 private val ScreenBackground = Color(0xFFF4F7FB)
@@ -71,6 +91,10 @@ internal fun LoanDetailScreen(
     isLoading: Boolean,
     fallbackLoan: LoanSummary?,
     onOpenInstallment: (Long) -> Unit,
+    onRegisterPayment: ((Long, String, String) -> Unit)? = null,
+    isPaymentLoading: Boolean = false,
+    onGenerateDocument: ((Long, String) -> Unit)? = null,
+    isDocumentGenerating: Boolean = false,
 ) {
     val loan = detail?.summary ?: fallbackLoan
 
@@ -88,15 +112,34 @@ internal fun LoanDetailScreen(
     val installments = detail?.installments.orEmpty()
     val payments = detail?.payments.orEmpty()
 
-    LazyColumn(
+    var showPaymentDialog by remember { mutableStateOf(false) }
+    val canPay = onRegisterPayment != null &&
+            loan.status.trim().lowercase() in setOf("active", "late")
+
+    if (showPaymentDialog && onRegisterPayment != null) {
+        RegisterPaymentDialog(
+            loan = loan,
+            isLoading = isPaymentLoading,
+            onDismiss = { showPaymentDialog = false },
+            onConfirm = { amountText, methodApiValue ->
+                showPaymentDialog = false
+                onRegisterPayment(loan.id, amountText, methodApiValue)
+            },
+        )
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(ScreenBackground),
+    ) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = 20.dp,
             end = 20.dp,
             top = 20.dp,
-            bottom = 28.dp,
+            bottom = if (canPay) 96.dp else 28.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
@@ -145,6 +188,21 @@ internal fun LoanDetailScreen(
             }
         }
 
+        if (detail != null && detail.documents.isNotEmpty()) {
+            item {
+                SectionHeader(title = "Documentos")
+            }
+
+            item {
+                LoanDocumentsCard(
+                    documents = detail.documents,
+                    canGenerate = onGenerateDocument != null,
+                    isGenerating = isDocumentGenerating,
+                    onGenerate = { type -> onGenerateDocument?.invoke(loan.id, type) },
+                )
+            }
+        }
+
         if (payments.isNotEmpty()) {
             item {
                 SectionHeader(title = "Pagos relacionados")
@@ -158,6 +216,242 @@ internal fun LoanDetailScreen(
             }
         }
     }
+
+        if (canPay) {
+            ExtendedFloatingActionButton(
+                onClick = { showPaymentDialog = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(20.dp),
+                containerColor = PrimaryContainer,
+                contentColor = Color.White,
+                icon = {
+                    Icon(
+                        imageVector = Icons.Outlined.Add,
+                        contentDescription = null,
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Registrar pago",
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
+            )
+        }
+    }
+}
+
+/**
+ * Documentos legales del préstamo (contrato, pagaré, desembolso, etc.).
+ * Espeja la sección de documentos del sistema web: cada tipo se puede
+ * generar una vez y luego abrir/compartir su PDF.
+ */
+@Composable
+private fun LoanDocumentsCard(
+    documents: List<LoanDocument>,
+    canGenerate: Boolean,
+    isGenerating: Boolean,
+    onGenerate: (String) -> Unit,
+) {
+    val context = LocalContext.current
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            documents.forEachIndexed { index, document ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(if (document.generated) SuccessSoft else SurfaceContainerLow),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Description,
+                            contentDescription = null,
+                            tint = if (document.generated) Success else Outline,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = document.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = TextMain,
+                            maxLines = 1,
+                        )
+
+                        Text(
+                            text = if (document.generated) {
+                                "Generado · ${document.createdAt.orEmpty().take(10)}"
+                            } else {
+                                "No generado"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (document.generated) Success else TextVariant,
+                        )
+                    }
+
+                    when {
+                        document.downloadUrl != null -> {
+                            TextButton(
+                                onClick = {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(document.downloadUrl)),
+                                    )
+                                },
+                            ) {
+                                Text(
+                                    text = "Abrir",
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryContainer,
+                                )
+                            }
+                        }
+
+                        canGenerate -> {
+                            TextButton(
+                                onClick = { onGenerate(document.documentType) },
+                                enabled = !isGenerating,
+                            ) {
+                                Text(
+                                    text = if (isGenerating) "Generando..." else "Generar",
+                                    fontWeight = FontWeight.Bold,
+                                    color = PrimaryContainer,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (index < documents.lastIndex) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(OutlineVariant.copy(alpha = 0.45f)),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Diálogo de cobro para el back-office: monto prellenado con la cuota del
+ * préstamo y método de pago. La lógica de registro vive en el ViewModel.
+ */
+@Composable
+private fun RegisterPaymentDialog(
+    loan: LoanSummary,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit,
+) {
+    val currency = rememberCurrency()
+    var amount by remember {
+        mutableStateOf(
+            when {
+                loan.installmentAmount <= 0 -> ""
+                loan.installmentAmount % 1.0 == 0.0 -> loan.installmentAmount.toLong().toString()
+                else -> loan.installmentAmount.toString()
+            },
+        )
+    }
+    var method by remember { mutableStateOf(PaymentMethod.Cash) }
+
+    val parsedAmount = amount.toDoubleOrNull()
+    val amountError = when {
+        amount.isBlank() -> null
+        parsedAmount == null || parsedAmount <= 0 -> "Indica un monto válido."
+        else -> null
+    }
+
+    AlertDialog(
+        onDismissRequest = { if (!isLoading) onDismiss() },
+        title = { Text("Registrar pago") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = buildString {
+                        append("Préstamo #${loan.loanNumber}")
+                        loan.client?.fullName?.let { append(" · ").append(it) }
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextMain,
+                )
+
+                Text(
+                    text = "Balance pendiente: ${currency.format(loan.remainingBalance)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextVariant,
+                )
+
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Monto a cobrar") },
+                    singleLine = true,
+                    isError = amountError != null,
+                    supportingText = {
+                        amountError?.let { Text(it) }
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.AttachMoney,
+                            contentDescription = null,
+                            tint = if (amountError != null) Error else TextVariant,
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = RoundedCornerShape(14.dp),
+                )
+
+                PaymentMethodSelector(
+                    selected = method,
+                    onSelected = { method = it },
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(amount, method.apiValue) },
+                enabled = !isLoading && parsedAmount != null && parsedAmount > 0,
+                colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
+            ) {
+                Text(if (isLoading) "Procesando..." else "Cobrar")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                enabled = !isLoading,
+            ) {
+                Text("Cancelar")
+            }
+        },
+    )
 }
 
 @Composable
@@ -267,7 +561,7 @@ private fun LoanHeaderCard(
                         LoanHeaderInfoItem(
                             icon = Icons.Outlined.Payments,
                             label = "Frecuencia",
-                            value = loan.paymentFrequency,
+                            value = formatPaymentFrequency(loan.paymentFrequency),
                             modifier = Modifier.weight(1f),
                         )
 

@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.LocationOn
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -69,6 +71,7 @@ private val ErrorText = Color(0xFF93000A)
 internal fun ClientsScreen(
     clients: List<ClientSummary>,
     onOpenClient: (Long) -> Unit,
+    onCreateClient: (() -> Unit)? = null,
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
@@ -87,15 +90,18 @@ internal fun ClientsScreen(
         }
     }
 
-    LazyColumn(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(ScreenBackground),
+    ) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
             start = 20.dp,
             end = 20.dp,
             top = 22.dp,
-            bottom = 28.dp,
+            bottom = if (onCreateClient != null) 96.dp else 28.dp,
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -127,6 +133,30 @@ internal fun ClientsScreen(
                     onOpenClient = onOpenClient,
                 )
             }
+        }
+    }
+
+        if (onCreateClient != null) {
+            ExtendedFloatingActionButton(
+                onClick = onCreateClient,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(20.dp),
+                containerColor = PrimaryContainer,
+                contentColor = Color.White,
+                icon = {
+                    Icon(
+                        imageVector = Icons.Outlined.Add,
+                        contentDescription = null,
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Nuevo cliente",
+                        fontWeight = FontWeight.Bold,
+                    )
+                },
+            )
         }
     }
 }

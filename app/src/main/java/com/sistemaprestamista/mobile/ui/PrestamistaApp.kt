@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -41,8 +42,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -127,6 +130,14 @@ fun PrestamistaApp(
         onLoadAdminClientDetail = viewModel::loadAdminClientDetail,
         onLoadAdminLoanDetail = viewModel::loadAdminLoanDetail,
         onLoadMoreAdminLoans = viewModel::loadMoreAdminLoans,
+        onRegisterAdminPayment = viewModel::registerAdminPayment,
+        onGenerateLoanDocument = viewModel::generateLoanDocument,
+        onCreateAdminClient = viewModel::createAdminClient,
+        onLoadAdminQuotes = viewModel::loadAdminQuotes,
+        onCreateAdminQuote = viewModel::createAdminQuote,
+        onLoadAdminQuote = viewModel::loadAdminQuote,
+        onDeleteAdminQuote = viewModel::deleteAdminQuote,
+        onClearCreationMarkers = viewModel::clearCreationMarkers,
         onApproveLoan = viewModel::approveLoan,
         onRejectLoan = viewModel::rejectLoan,
         onCreateExpense = viewModel::createExpense,
@@ -158,6 +169,14 @@ private fun AuthenticatedShell(
     onLoadAdminClientDetail: (Long) -> Unit,
     onLoadAdminLoanDetail: (Long) -> Unit,
     onLoadMoreAdminLoans: () -> Unit,
+    onRegisterAdminPayment: (Long, String, String) -> Unit,
+    onGenerateLoanDocument: (Long, String) -> Unit,
+    onCreateAdminClient: (com.sistemaprestamista.mobile.data.model.NewClientInput) -> Unit,
+    onLoadAdminQuotes: () -> Unit,
+    onCreateAdminQuote: (Long?, Double, Double, String, String, String, Int) -> Unit,
+    onLoadAdminQuote: (Long) -> Unit,
+    onDeleteAdminQuote: (Long) -> Unit,
+    onClearCreationMarkers: () -> Unit,
     onApproveLoan: (Long) -> Unit,
     onRejectLoan: (Long, String?) -> Unit,
     onCreateExpense: (Long?, String, String, String) -> Unit,
@@ -336,6 +355,26 @@ private fun AuthenticatedShell(
                         onOpenClient = { clientId ->
                             navController.navigate(AppRoutes.adminClientDetail(clientId))
                         },
+                        onCreateClient = if (state.canCreateClients) {
+                            { navController.navigate(AppRoutes.AdminClientCreate) }
+                        } else {
+                            null
+                        },
+                    )
+                }
+
+                composable(AppRoutes.AdminClientCreate) {
+                    // Al confirmar el alta se regresa automáticamente al listado.
+                    LaunchedEffect(state.lastCreatedClientId) {
+                        if (state.lastCreatedClientId != null) {
+                            onClearCreationMarkers()
+                            navController.popBackStack()
+                        }
+                    }
+
+                    ClientCreateScreen(
+                        isSaving = state.isClientSaving,
+                        onSubmit = onCreateAdminClient,
                     )
                 }
 
@@ -348,6 +387,70 @@ private fun AuthenticatedShell(
                         hasMore = state.adminLoansHasMore,
                         isLoadingMore = state.isLoadingMoreAdminLoans,
                         onLoadMore = onLoadMoreAdminLoans,
+                        onOpenQuotes = if (state.canManageQuotes) {
+                            { navController.navigate(AppRoutes.AdminQuotes) }
+                        } else {
+                            null
+                        },
+                    )
+                }
+
+                composable(AppRoutes.AdminQuotes) {
+                    LaunchedEffect(Unit) {
+                        onLoadAdminQuotes()
+                    }
+
+                    QuotesScreen(
+                        quotes = state.adminQuotes,
+                        isLoading = state.isQuotesLoading,
+                        onOpenQuote = { quoteId ->
+                            navController.navigate(AppRoutes.adminQuoteDetail(quoteId))
+                        },
+                        onCreateQuote = {
+                            navController.navigate(AppRoutes.AdminQuoteCreate)
+                        },
+                    )
+                }
+
+                composable(AppRoutes.AdminQuoteCreate) {
+                    // Tras guardar, se abre directo el detalle con el cronograma calculado.
+                    LaunchedEffect(state.lastCreatedQuoteId) {
+                        val quoteId = state.lastCreatedQuoteId
+                        if (quoteId != null) {
+                            onClearCreationMarkers()
+                            navController.popBackStack()
+                            navController.navigate(AppRoutes.adminQuoteDetail(quoteId))
+                        }
+                    }
+
+                    QuoteFormScreen(
+                        clients = state.adminClients,
+                        isSaving = state.isQuoteSaving,
+                        onSubmit = onCreateAdminQuote,
+                    )
+                }
+
+                composable(AppRoutes.AdminQuoteDetail) { backStackEntry ->
+                    val quoteId = backStackEntry.arguments?.getString("quoteId")?.toLongOrNull()
+
+                    LaunchedEffect(quoteId) {
+                        if (quoteId != null) {
+                            onLoadAdminQuote(quoteId)
+                        }
+                    }
+
+                    // Si se elimina, la cotización desaparece del estado y se vuelve al listado.
+                    LaunchedEffect(state.adminQuotes, state.selectedQuote) {
+                        if (quoteId != null && state.selectedQuote == null && state.adminQuotes.none { it.id == quoteId } && !state.isDetailLoading) {
+                            navController.popBackStack()
+                        }
+                    }
+
+                    QuoteDetailScreen(
+                        quote = state.selectedQuote?.takeIf { it.id == quoteId },
+                        isLoading = state.isDetailLoading,
+                        isDeleting = state.isQuoteSaving,
+                        onDelete = onDeleteAdminQuote,
                     )
                 }
 
@@ -420,6 +523,11 @@ private fun AuthenticatedShell(
                         isLoading = state.isDetailLoading,
                         fallbackLoan = state.adminLoans.firstOrNull { it.id == loanId },
                         onOpenInstallment = { },
+                        // FAB "Registrar pago": solo para back-office con permiso de cobro.
+                        onRegisterPayment = if (state.canRegisterAdminPayment) onRegisterAdminPayment else null,
+                        isPaymentLoading = state.isLoading,
+                        onGenerateDocument = if (state.canGenerateDocuments) onGenerateLoanDocument else null,
+                        isDocumentGenerating = state.isDocumentGenerating,
                     )
                 }
 
@@ -483,6 +591,8 @@ private fun AuthenticatedShell(
                         onOpenInstallment = { installmentId ->
                             navController.navigate(AppRoutes.installmentDetail(installmentId))
                         },
+                        onGenerateDocument = if (state.canGenerateDocuments) onGenerateLoanDocument else null,
+                        isDocumentGenerating = state.isDocumentGenerating,
                     )
                 }
 
@@ -624,13 +734,17 @@ private fun AppBottomBar(
             NavigationBarItem(
                 selected = selected,
                 onClick = { onNavigate(item) },
+                // Solo la pestaña activa muestra su etiqueta (a tamaño normal):
+                // con 6 destinos en pantallas angostas, mostrar todas las
+                // etiquetas obligaba a encogerlas y se distorsionaba la barra.
+                alwaysShowLabel = false,
                 icon = {
                     if (selected) {
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
                                 .background(SecondaryContainer)
-                                .padding(horizontal = 18.dp, vertical = 5.dp),
+                                .padding(horizontal = 14.dp, vertical = 4.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
@@ -650,9 +764,12 @@ private fun AppBottomBar(
                 label = {
                     Text(
                         text = item.title,
+                        style = MaterialTheme.typography.labelMedium,
                         color = if (selected) PrimaryContainer else NavUnselected,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
                         maxLines = 1,
+                        softWrap = false,
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(
@@ -680,8 +797,12 @@ private fun currentDestination(
             AppRoutes.ClientDetail -> AppDestination.Clients
             AppRoutes.LoanDetail,
             AppRoutes.InstallmentDetail -> AppDestination.Collections
-            AppRoutes.AdminClientDetail -> AppDestination.ClientsAdmin
-            AppRoutes.AdminLoanDetail -> AppDestination.LoansAdmin
+            AppRoutes.AdminClientDetail,
+            AppRoutes.AdminClientCreate -> AppDestination.ClientsAdmin
+            AppRoutes.AdminLoanDetail,
+            AppRoutes.AdminQuotes,
+            AppRoutes.AdminQuoteCreate,
+            AppRoutes.AdminQuoteDetail -> AppDestination.LoansAdmin
             AppRoutes.ReceiptDetail -> AppDestination.Payments
             AppRoutes.PrintSettings,
             AppRoutes.PendingPayments -> AppDestination.Profile
@@ -694,9 +815,13 @@ private fun currentTitle(
     fallback: AppDestination,
 ): String {
     return when (route) {
-        AppRoutes.ClientDetail, AppRoutes.AdminClientDetail -> "Detalle cliente"
-        AppRoutes.LoanDetail, AppRoutes.AdminLoanDetail -> "Detalle préstamo"
-        AppRoutes.InstallmentDetail -> "Detalle cuota"
+        AppRoutes.ClientDetail, AppRoutes.AdminClientDetail -> "Detalle del Cliente"
+        AppRoutes.LoanDetail, AppRoutes.AdminLoanDetail -> "Detalle del Préstamo"
+        AppRoutes.InstallmentDetail -> "Detalle de la Cuota"
+        AppRoutes.AdminClientCreate -> "Nuevo Cliente"
+        AppRoutes.AdminQuotes -> "Cotizaciones"
+        AppRoutes.AdminQuoteCreate -> "Nueva Cotización"
+        AppRoutes.AdminQuoteDetail -> "Detalle de Cotización"
         AppRoutes.ReceiptDetail -> "Recibo"
         AppRoutes.PrintSettings -> "Impresora"
         AppRoutes.PendingPayments -> "Cobros pendientes"

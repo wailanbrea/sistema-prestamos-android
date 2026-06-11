@@ -15,6 +15,7 @@ import com.sistemaprestamista.mobile.data.model.CollectorRouteSession
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentDetail
 import com.sistemaprestamista.mobile.data.model.LoanDetail
+import com.sistemaprestamista.mobile.data.model.LoanQuote
 import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.MapClient
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
@@ -63,6 +64,15 @@ data class AppUiState(
     val reportSummary: AdminReportSummary? = null,
     val collectorPerformance: List<CollectorPerformanceRow> = emptyList(),
     val isApprovalActionLoading: Boolean = false,
+    val isDocumentGenerating: Boolean = false,
+    // Alta de clientes y cotizaciones (back-office)
+    val isClientSaving: Boolean = false,
+    val lastCreatedClientId: Long? = null,
+    val adminQuotes: List<LoanQuote> = emptyList(),
+    val selectedQuote: LoanQuote? = null,
+    val isQuoteSaving: Boolean = false,
+    val isQuotesLoading: Boolean = false,
+    val lastCreatedQuoteId: Long? = null,
     // Caja / Contabilidad
     val expenses: List<ExpenseItem> = emptyList(),
     val expenseCategories: List<ExpenseCategoryOption> = emptyList(),
@@ -87,6 +97,24 @@ data class AppUiState(
 
     /** Puede aprobar/rechazar préstamos pendientes. */
     val canApprove: Boolean = permissions.contains("loans.approve")
+
+    /**
+     * Cobro desde back-office (admin/payments): espeja el gate del servidor,
+     * que exige cartera global ADEMÁS de payments.create.
+     */
+    val canRegisterAdminPayment: Boolean = canManagePortfolio && permissions.contains("payments.create")
+
+    /**
+     * Generación de documentos del préstamo. La ruta admin exige documents.generate;
+     * la del cobrador solo collector.access (su propia cartera).
+     */
+    val canGenerateDocuments: Boolean = isCollector || permissions.contains("documents.generate")
+
+    /** Alta de clientes desde back-office (espeja clients.create de la web). */
+    val canCreateClients: Boolean = canManagePortfolio && permissions.contains("clients.create")
+
+    /** Cotizaciones (mismo gate que la web: quotes.manage). */
+    val canManageQuotes: Boolean = canManagePortfolio && permissions.contains("quotes.manage")
 
     /** Puede ver reportes/informes. */
     val canViewReports: Boolean = permissions.contains("reports.view")

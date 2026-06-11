@@ -14,27 +14,34 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Fingerprint
-import androidx.compose.material.icons.outlined.LockReset
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -48,18 +55,32 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 
 private const val LOGIN_PREFS_NAME = "login_preferences"
 private const val KEY_REMEMBER_USER = "remember_user"
 private const val KEY_REMEMBERED_EMAIL = "remembered_email"
+
+private val BrandBlue = Color(0xFF0F4C81)
+private val BrandBlueDark = Color(0xFF082F54)
+private val BrandGreen = Color(0xFF166534)
+private val BrandGreenDark = Color(0xFF14532D)
+private val CardWhite = Color(0xFFFFFFFF)
+private val FieldBackground = Color(0xFFF8FAFC)
+private val TextMain = Color(0xFF0F172A)
+private val TextMuted = Color(0xFF64748B)
+private val FieldBorder = Color(0xFFE2E8F0)
 
 @Composable
 internal fun LoginScreen(
@@ -90,11 +111,11 @@ internal fun LoginScreen(
         }
     }
 
-    val biometricAvailable = remember(context, hasSavedSession) {
-        hasSavedSession &&
-                BiometricManager.from(context).canAuthenticate(BIOMETRIC_STRONG or DEVICE_CREDENTIAL) ==
+    val biometricHardwareReady = remember(context) {
+        BiometricManager.from(context).canAuthenticate(BIOMETRIC_STRONG or DEVICE_CREDENTIAL) ==
                 BiometricManager.BIOMETRIC_SUCCESS
     }
+    val biometricEnabled = biometricHardwareReady && hasSavedSession
 
     var email by remember { mutableStateOf(savedEmail) }
     var password by remember { mutableStateOf("") }
@@ -147,163 +168,300 @@ internal fun LoginScreen(
         prompt.authenticate(promptInfo)
     }
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
-        Column(
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = Color.Transparent,
+    ) { padding ->
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.Center,
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(BrandBlue, BrandBlueDark),
+                    ),
+                ),
         ) {
-            Box(
+            Column(
                 modifier = Modifier
-                    .size(58.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(padding)
+                    .padding(horizontal = 24.dp)
+                    .imePadding(),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.AccountBalanceWallet,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
+                Spacer(Modifier.height(48.dp))
 
-            Spacer(Modifier.height(18.dp))
+                // Marca BSP: mismo monograma y verde del ícono de la app.
+                Box(
+                    modifier = Modifier
+                        .size(84.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(BrandGreen, BrandGreenDark),
+                            ),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "BSP",
+                        color = Color.White,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.sp,
+                    )
+                }
 
-            Text(
-                text = "Sistema Prestamista",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-            )
+                Spacer(Modifier.height(18.dp))
 
-            Text(
-                text = "Acceso seguro para operaciones de cobro.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Spacer(Modifier.height(28.dp))
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it.trim() },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Correo") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                shape = RoundedCornerShape(14.dp),
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Contraseña") },
-                singleLine = true,
-                visualTransformation = if (passwordVisible) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) {
-                                Icons.Outlined.VisibilityOff
-                            } else {
-                                Icons.Outlined.Visibility
-                            },
-                            contentDescription = if (passwordVisible) {
-                                "Ocultar contraseña"
-                            } else {
-                                "Ver contraseña"
-                            },
-                        )
-                    }
-                },
-                shape = RoundedCornerShape(14.dp),
-            )
-
-            Spacer(Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = rememberUser,
-                    onCheckedChange = { checked ->
-                        rememberUser = checked
-
-                        if (!checked) {
-                            preferences.edit()
-                                .putBoolean(KEY_REMEMBER_USER, false)
-                                .remove(KEY_REMEMBERED_EMAIL)
-                                .apply()
-                        }
-                    },
-                    enabled = !isLoading,
+                Text(
+                    text = "Sistema Prestamista",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
                 )
 
                 Text(
-                    text = "Recordar usuario",
+                    text = "Acceso seguro para operaciones de cobro",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Color.White.copy(alpha = 0.72f),
+                    textAlign = TextAlign.Center,
                 )
-            }
 
-            Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(28.dp))
 
-            Button(
-                onClick = {
-                    saveRememberedUser()
-                    onLogin(email.trim(), password)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading,
-                shape = RoundedCornerShape(14.dp),
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Text("Entrar")
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                FilledTonalButton(
-                    onClick = { showRecoveryDialog = true },
-                    modifier = Modifier.weight(1f),
-                    enabled = !isLoading,
-                    shape = RoundedCornerShape(14.dp),
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(26.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardWhite),
                 ) {
-                    Icon(Icons.Outlined.LockReset, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Recuperar")
+                    Column(
+                        modifier = Modifier.padding(22.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Text(
+                            text = "Bienvenido",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextMain,
+                        )
+
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it.trim() },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Correo") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Mail,
+                                    contentDescription = null,
+                                    tint = TextMuted,
+                                )
+                            },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = FieldBackground,
+                                unfocusedContainerColor = FieldBackground,
+                                focusedBorderColor = BrandBlue,
+                                unfocusedBorderColor = FieldBorder,
+                                focusedLabelColor = BrandBlue,
+                            ),
+                        )
+
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Contraseña") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Lock,
+                                    contentDescription = null,
+                                    tint = TextMuted,
+                                )
+                            },
+                            singleLine = true,
+                            visualTransformation = if (passwordVisible) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            trailingIcon = {
+                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                    Icon(
+                                        imageVector = if (passwordVisible) {
+                                            Icons.Outlined.VisibilityOff
+                                        } else {
+                                            Icons.Outlined.Visibility
+                                        },
+                                        contentDescription = if (passwordVisible) {
+                                            "Ocultar contraseña"
+                                        } else {
+                                            "Ver contraseña"
+                                        },
+                                        tint = TextMuted,
+                                    )
+                                }
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = FieldBackground,
+                                unfocusedContainerColor = FieldBackground,
+                                focusedBorderColor = BrandBlue,
+                                unfocusedBorderColor = FieldBorder,
+                                focusedLabelColor = BrandBlue,
+                            ),
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = rememberUser,
+                                    onCheckedChange = { checked ->
+                                        rememberUser = checked
+
+                                        if (!checked) {
+                                            preferences.edit()
+                                                .putBoolean(KEY_REMEMBER_USER, false)
+                                                .remove(KEY_REMEMBERED_EMAIL)
+                                                .apply()
+                                        }
+                                    },
+                                    enabled = !isLoading,
+                                    colors = CheckboxDefaults.colors(checkedColor = BrandBlue),
+                                )
+
+                                Text(
+                                    text = "Recordarme",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted,
+                                )
+                            }
+
+                            TextButton(
+                                onClick = { showRecoveryDialog = true },
+                                enabled = !isLoading,
+                            ) {
+                                Text(
+                                    text = "¿Olvidaste tu contraseña?",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = BrandBlue,
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                saveRememberedUser()
+                                onLogin(email.trim(), password)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            enabled = !isLoading,
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = BrandBlue,
+                                contentColor = Color.White,
+                            ),
+                        ) {
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color.White,
+                                )
+                            } else {
+                                Text(
+                                    text = "Iniciar sesión",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                )
+                            }
+                        }
+
+                        if (biometricHardwareReady) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(1.dp)
+                                        .background(FieldBorder),
+                                )
+
+                                Text(
+                                    text = "o",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted,
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(1.dp)
+                                        .background(FieldBorder),
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = ::launchBiometricPrompt,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp),
+                                enabled = !isLoading && biometricEnabled,
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = BrandBlue,
+                                ),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Fingerprint,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                                Spacer(Modifier.size(8.dp))
+                                Text(
+                                    text = "Entrar con huella",
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+
+                            if (!biometricEnabled) {
+                                Text(
+                                    text = "La huella se habilita después de tu primer inicio de sesión.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                    }
                 }
 
-                OutlinedButton(
-                    onClick = ::launchBiometricPrompt,
-                    modifier = Modifier.weight(1f),
-                    enabled = !isLoading && biometricAvailable,
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Icon(Icons.Outlined.Fingerprint, contentDescription = null)
-                    Spacer(Modifier.size(8.dp))
-                    Text("Huella")
-                }
+                Spacer(Modifier.height(24.dp))
+
+                Text(
+                    text = "BSP · Gestión de préstamos y cobros",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.55f),
+                )
+
+                Spacer(Modifier.height(24.dp))
             }
         }
     }
