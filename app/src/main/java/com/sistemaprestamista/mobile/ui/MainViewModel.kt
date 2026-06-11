@@ -448,9 +448,43 @@ class MainViewModel(
         }
     }
 
+    fun loadAdminCollectors() {
+        if (uiState.value.adminCollectors.isNotEmpty()) return
+
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminCollectors() }
+            }.onSuccess { collectors ->
+                _uiState.update { it.copy(adminCollectors = collectors) }
+            }
+        }
+    }
+
+    fun createAdminLoan(input: com.sistemaprestamista.mobile.data.model.NewLoanInput) {
+        if (uiState.value.isLoanSaving) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoanSaving = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminCreateLoan(input) }
+            }.onSuccess { loan ->
+                _uiState.update {
+                    it.copy(
+                        isLoanSaving = false,
+                        adminLoans = listOf(loan) + it.adminLoans,
+                        lastCreatedLoanId = loan.id,
+                        successMessage = "Préstamo ${loan.loanNumber} creado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isLoanSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
     /** Limpia los marcadores de "recién creado" usados para navegar tras guardar. */
     fun clearCreationMarkers() {
-        _uiState.update { it.copy(lastCreatedClientId = null, lastCreatedQuoteId = null) }
+        _uiState.update { it.copy(lastCreatedClientId = null, lastCreatedQuoteId = null, lastCreatedLoanId = null) }
     }
 
     /** Recarga el detalle del préstamo cobrado y su fila en la cartera; un fallo se ignora. */

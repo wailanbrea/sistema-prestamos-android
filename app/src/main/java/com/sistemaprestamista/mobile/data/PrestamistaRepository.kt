@@ -3,6 +3,7 @@ package com.sistemaprestamista.mobile.data
 import android.content.Context
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
+import com.sistemaprestamista.mobile.data.model.CollectorOption
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
 import com.sistemaprestamista.mobile.data.model.CollectorRoute
 import com.sistemaprestamista.mobile.data.model.CollectorRouteSession
@@ -11,6 +12,7 @@ import com.sistemaprestamista.mobile.data.model.InstallmentDetail
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanSummary
+import com.sistemaprestamista.mobile.data.model.NewLoanInput
 import com.sistemaprestamista.mobile.data.model.MapClient
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
@@ -58,6 +60,10 @@ class PrestamistaRepository(
     fun dashboard(): DashboardSummary = apiClient.dashboard(requiredToken())
 
     // --- Back-office / administrador ---
+
+    fun adminCollectors(): List<CollectorOption> = apiClient.adminCollectors(requiredToken())
+
+    fun adminCreateLoan(input: NewLoanInput): LoanSummary = apiClient.adminCreateLoan(requiredToken(), input)
 
     fun adminClients(search: String? = null): List<ClientSummary> = apiClient.adminClients(requiredToken(), search)
 

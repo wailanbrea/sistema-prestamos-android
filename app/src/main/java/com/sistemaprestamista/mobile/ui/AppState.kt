@@ -3,6 +3,7 @@ package com.sistemaprestamista.mobile.ui
 import com.sistemaprestamista.mobile.data.model.AdminReportSummary
 import com.sistemaprestamista.mobile.data.model.CashMovementItem
 import com.sistemaprestamista.mobile.data.model.CashSummary
+import com.sistemaprestamista.mobile.data.model.CollectorOption
 import com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow
 import com.sistemaprestamista.mobile.data.model.ExpenseCategoryOption
 import com.sistemaprestamista.mobile.data.model.ExpenseItem
@@ -65,9 +66,12 @@ data class AppUiState(
     val collectorPerformance: List<CollectorPerformanceRow> = emptyList(),
     val isApprovalActionLoading: Boolean = false,
     val isDocumentGenerating: Boolean = false,
-    // Alta de clientes y cotizaciones (back-office)
+    // Alta de clientes, cotizaciones y préstamos (back-office)
     val isClientSaving: Boolean = false,
     val lastCreatedClientId: Long? = null,
+    val adminCollectors: List<CollectorOption> = emptyList(),
+    val isLoanSaving: Boolean = false,
+    val lastCreatedLoanId: Long? = null,
     val adminQuotes: List<LoanQuote> = emptyList(),
     val selectedQuote: LoanQuote? = null,
     val isQuoteSaving: Boolean = false,
@@ -112,6 +116,9 @@ data class AppUiState(
 
     /** Alta de clientes desde back-office (espeja clients.create de la web). */
     val canCreateClients: Boolean = canManagePortfolio && permissions.contains("clients.create")
+
+    /** Creación de préstamos desde la app (mismo gate que la web: loans.create). */
+    val canCreateLoans: Boolean = canManagePortfolio && permissions.contains("loans.create")
 
     /** Cotizaciones (mismo gate que la web: quotes.manage). */
     val canManageQuotes: Boolean = canManagePortfolio && permissions.contains("quotes.manage")

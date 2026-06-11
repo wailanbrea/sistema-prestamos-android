@@ -57,6 +57,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
 import com.sistemaprestamista.mobile.printing.A4ReceiptPrinter
@@ -181,6 +183,33 @@ internal fun ReceiptDetailScreen(
                 receipt = receipt,
                 formatAmount = { currency.format(it) },
             )
+        }
+
+        receipt.whatsappUrl?.let { url ->
+            Button(
+                onClick = {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        })
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(22.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF25D366),
+                    contentColor = Color.White,
+                ),
+            ) {
+                Icon(Icons.Outlined.Description, contentDescription = null)
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    text = "Enviar por WhatsApp",
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
 
         FilledTonalButton(

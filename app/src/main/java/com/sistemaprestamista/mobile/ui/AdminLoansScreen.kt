@@ -12,14 +12,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -58,9 +61,11 @@ internal fun AdminLoansScreen(
     isLoadingMore: Boolean = false,
     onLoadMore: () -> Unit = {},
     onOpenQuotes: (() -> Unit)? = null,
+    onCreateLoan: (() -> Unit)? = null,
 ) {
     var query by remember { mutableStateOf("") }
     val currency = rememberCurrency()
+    val listState = rememberLazyListState()
 
     val filtered = remember(loans, query) {
         val q = query.trim().lowercase()
@@ -70,7 +75,9 @@ internal fun AdminLoansScreen(
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
             .background(ScreenBackground),
@@ -167,6 +174,20 @@ internal fun AdminLoansScreen(
                 }
             }
         }
+    }
+
+    if (onCreateLoan != null) {
+        ExtendedFloatingActionButton(
+            onClick = onCreateLoan,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(24.dp),
+            containerColor = PrimaryContainer,
+            contentColor = Color.White,
+            icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+            text = { Text("Nuevo préstamo", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
+        )
+    }
     }
 }
 

@@ -133,6 +133,8 @@ fun PrestamistaApp(
         onRegisterAdminPayment = viewModel::registerAdminPayment,
         onGenerateLoanDocument = viewModel::generateLoanDocument,
         onCreateAdminClient = viewModel::createAdminClient,
+        onLoadAdminCollectors = viewModel::loadAdminCollectors,
+        onCreateAdminLoan = viewModel::createAdminLoan,
         onLoadAdminQuotes = viewModel::loadAdminQuotes,
         onCreateAdminQuote = viewModel::createAdminQuote,
         onLoadAdminQuote = viewModel::loadAdminQuote,
@@ -172,6 +174,8 @@ private fun AuthenticatedShell(
     onRegisterAdminPayment: (Long, String, String) -> Unit,
     onGenerateLoanDocument: (Long, String) -> Unit,
     onCreateAdminClient: (com.sistemaprestamista.mobile.data.model.NewClientInput) -> Unit,
+    onLoadAdminCollectors: () -> Unit,
+    onCreateAdminLoan: (com.sistemaprestamista.mobile.data.model.NewLoanInput) -> Unit,
     onLoadAdminQuotes: () -> Unit,
     onCreateAdminQuote: (Long?, Double, Double, String, String, String, Int) -> Unit,
     onLoadAdminQuote: (Long) -> Unit,
@@ -392,6 +396,30 @@ private fun AuthenticatedShell(
                         } else {
                             null
                         },
+                        onCreateLoan = if (state.canCreateLoans) {
+                            { navController.navigate(AppRoutes.AdminLoanCreate) }
+                        } else {
+                            null
+                        },
+                    )
+                }
+
+                composable(AppRoutes.AdminLoanCreate) {
+                    LaunchedEffect(state.lastCreatedLoanId) {
+                        val loanId = state.lastCreatedLoanId
+                        if (loanId != null) {
+                            onClearCreationMarkers()
+                            navController.popBackStack()
+                            navController.navigate(AppRoutes.adminLoanDetail(loanId))
+                        }
+                    }
+
+                    LoanCreateScreen(
+                        clients = state.adminClients,
+                        collectors = state.adminCollectors,
+                        isSaving = state.isLoanSaving,
+                        onLoadCollectors = onLoadAdminCollectors,
+                        onSubmit = onCreateAdminLoan,
                     )
                 }
 
@@ -800,6 +828,7 @@ private fun currentDestination(
             AppRoutes.AdminClientDetail,
             AppRoutes.AdminClientCreate -> AppDestination.ClientsAdmin
             AppRoutes.AdminLoanDetail,
+            AppRoutes.AdminLoanCreate,
             AppRoutes.AdminQuotes,
             AppRoutes.AdminQuoteCreate,
             AppRoutes.AdminQuoteDetail -> AppDestination.LoansAdmin
@@ -819,6 +848,7 @@ private fun currentTitle(
         AppRoutes.LoanDetail, AppRoutes.AdminLoanDetail -> "Detalle del Préstamo"
         AppRoutes.InstallmentDetail -> "Detalle de la Cuota"
         AppRoutes.AdminClientCreate -> "Nuevo Cliente"
+        AppRoutes.AdminLoanCreate -> "Nuevo Préstamo"
         AppRoutes.AdminQuotes -> "Cotizaciones"
         AppRoutes.AdminQuoteCreate -> "Nueva Cotización"
         AppRoutes.AdminQuoteDetail -> "Detalle de Cotización"

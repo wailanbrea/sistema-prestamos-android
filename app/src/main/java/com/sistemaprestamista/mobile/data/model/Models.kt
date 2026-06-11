@@ -303,6 +303,8 @@ data class PaymentReceipt(
     val status: String,
     val details: List<PaymentDetailLine> = emptyList(),
     val commission: PaymentCommission? = null,
+    val whatsappUrl: String? = null,
+    val receiptUrl: String? = null,
 )
 
 data class PaymentHistoryFilters(
@@ -376,6 +378,27 @@ data class CollectorPerformanceRow(
     val disbursed: Double,
     val activeAccounts: Int,
     val overdueAccounts: Int,
+)
+
+data class CollectorOption(val id: Long, val name: String)
+
+/** Datos del formulario de alta de préstamo (mismo contrato que la web). */
+data class NewLoanInput(
+    val clientId: Long,
+    val collectorId: Long?,
+    val currency: String,
+    val principalAmount: Double,
+    val interestRate: Double,
+    val interestType: String,
+    val paymentFrequency: String,
+    val calculationMethod: String,
+    val termQuantity: Int,
+    val lateFeeType: String,
+    val lateFeeValue: Double?,
+    val startDate: String,
+    val firstPaymentDate: String,
+    val notes: String? = null,
+    val quoteId: Long? = null,
 )
 
 /** Datos del formulario de alta de cliente (mismo contrato que la web). */

@@ -25,7 +25,9 @@ import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.LoanQuote
 import com.sistemaprestamista.mobile.data.model.LoginResult
 import com.sistemaprestamista.mobile.data.model.MapClient
+import com.sistemaprestamista.mobile.data.model.CollectorOption
 import com.sistemaprestamista.mobile.data.model.NewClientInput
+import com.sistemaprestamista.mobile.data.model.NewLoanInput
 import com.sistemaprestamista.mobile.data.model.Page
 import com.sistemaprestamista.mobile.data.model.PaymentDetailLine
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
@@ -343,6 +345,40 @@ class PrestamistaApiClient(
         )
 
         return parsePayment(json.getJSONObject("data"))
+    }
+
+    fun adminCollectors(token: String): List<CollectorOption> {
+        val json = request(path = "admin/collectors", method = "GET", token = token)
+        return json.getJSONArray("data").mapObjects { obj ->
+            CollectorOption(id = obj.getLong("id"), name = obj.getString("name"))
+        }
+    }
+
+    fun adminCreateLoan(token: String, input: NewLoanInput): LoanSummary {
+        val payload = JSONObject()
+            .put("client_id", input.clientId)
+            .put("currency", input.currency)
+            .put("late_fee_type", input.lateFeeType)
+            .put("start_date", input.startDate)
+            .put("first_payment_date", input.firstPaymentDate)
+
+        if (input.quoteId != null) {
+            payload.put("quote_id", input.quoteId)
+        } else {
+            payload.put("principal_amount", input.principalAmount)
+            payload.put("interest_rate", input.interestRate)
+            payload.put("interest_type", input.interestType)
+            payload.put("payment_frequency", input.paymentFrequency)
+            payload.put("calculation_method", input.calculationMethod)
+            payload.put("term_quantity", input.termQuantity)
+        }
+
+        input.collectorId?.let { payload.put("collector_id", it) }
+        input.lateFeeValue?.let { payload.put("late_fee_value", it) }
+        input.notes?.takeIf { it.isNotBlank() }?.let { payload.put("notes", it) }
+
+        val json = request(path = "admin/loans", method = "POST", token = token, body = payload)
+        return parseLoan(json.getJSONObject("data"))
     }
 
     fun adminCreateClient(token: String, input: NewClientInput): ClientSummary {
@@ -949,6 +985,8 @@ class PrestamistaApiClient(
                 )
             },
             commission = json.optJSONObject("commission")?.let(::parsePaymentCommission),
+            whatsappUrl = json.nullableString("whatsapp_url"),
+            receiptUrl = json.nullableString("receipt_url"),
         )
     }
 
