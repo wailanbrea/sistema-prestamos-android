@@ -47,6 +47,7 @@ data class AppUiState(
     val activeRouteSession: CollectorRouteSession? = null,
     val isRouteTrackingLoading: Boolean = false,
     val realRoutePoints: List<RoutePoint> = emptyList(),
+    val cachedPolylineRouteId: Long? = null,
     val routeWarning: String? = null,
     val isMapLoading: Boolean = false,
     val paymentHistoryFilters: PaymentHistoryFilters = PaymentHistoryFilters(),

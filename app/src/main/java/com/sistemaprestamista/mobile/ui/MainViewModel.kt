@@ -973,7 +973,15 @@ class MainViewModel(
                         activeSession = activeSession,
                     )
                     val routePoints = routePointsFor(clients, routes, selectedRouteId)
-                    val realRoute = runCatching { repository.drivingRoute(routePoints) }.getOrElse { emptyList() }
+                    val cached = uiState.value
+                    val realRoute = if (
+                        cached.cachedPolylineRouteId == selectedRouteId &&
+                        cached.realRoutePoints.isNotEmpty()
+                    ) {
+                        cached.realRoutePoints
+                    } else {
+                        runCatching { repository.drivingRoute(routePoints) }.getOrElse { emptyList() }
+                    }
                     MapLoadResult(clients, routes, activeSession, selectedRouteId, realRoute)
                 }
             }.onSuccess { result ->
@@ -986,6 +994,7 @@ class MainViewModel(
                         optimizedRouteClientIds = routeClientIdsFor(result.routes, result.selectedRouteId),
                         activeRouteSession = result.activeSession,
                         realRoutePoints = result.realRoute,
+                        cachedPolylineRouteId = if (result.realRoute.isNotEmpty()) result.selectedRouteId else it.cachedPolylineRouteId,
                         routeWarning = if (routePointsFor(result.clients, result.routes, result.selectedRouteId).size > 1 && result.realRoute.isEmpty()) {
                             "Google no pudo calcular una ruta real. Revisa API Routes, coordenadas o cantidad de paradas."
                         } else {
@@ -1040,6 +1049,7 @@ class MainViewModel(
                         selectedMapRouteId = result.selectedRouteId,
                         optimizedRouteClientIds = result.optimizedClientIds,
                         realRoutePoints = result.realRoute,
+                        cachedPolylineRouteId = if (result.realRoute.isNotEmpty()) result.selectedRouteId else it.cachedPolylineRouteId,
                         successMessage = "Seguimiento de ruta iniciado.",
                     )
                 }
@@ -1081,6 +1091,19 @@ class MainViewModel(
             return
         }
 
+        // If we already have a cached polyline for this route, switch without an API call.
+        val currentState = uiState.value
+        if (currentState.cachedPolylineRouteId == routeId && currentState.realRoutePoints.isNotEmpty()) {
+            _uiState.update {
+                it.copy(
+                    selectedMapRouteId = routeId,
+                    optimizedRouteClientIds = routeClientIdsFor(it.collectorRoutes, routeId),
+                    routeWarning = null,
+                )
+            }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update {
                 it.copy(
@@ -1108,6 +1131,7 @@ class MainViewModel(
                     it.copy(
                         isMapLoading = false,
                         realRoutePoints = realRoute,
+                        cachedPolylineRouteId = if (realRoute.isNotEmpty()) routeId else it.cachedPolylineRouteId,
                         routeWarning = if (points.size > 1 && realRoute.isEmpty()) {
                             "Google no pudo calcular una ruta real. Revisa API Routes, coordenadas o cantidad de paradas."
                         } else {
