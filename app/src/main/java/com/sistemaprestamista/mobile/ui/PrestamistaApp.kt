@@ -544,6 +544,16 @@ private fun AuthenticatedShell(
                     AdminReportsScreen(
                         summary = state.reportSummary,
                         collectors = state.collectorPerformance,
+                        onPrint = {
+                            state.reportSummary?.let { reportSummary ->
+                                com.sistemaprestamista.mobile.printing.ReportPrinter(context).printFinancialSummary(
+                                    summary = reportSummary,
+                                    collectors = state.collectorPerformance,
+                                    currencyCode = state.user?.company?.defaultCurrency ?: "RD\$",
+                                    companyName = state.user?.company?.name ?: "Sistema Prestamista",
+                                )
+                            }
+                        },
                     )
                 }
 
