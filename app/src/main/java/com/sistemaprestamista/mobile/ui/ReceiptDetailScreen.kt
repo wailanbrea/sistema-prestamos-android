@@ -202,7 +202,7 @@ internal fun ReceiptDetailScreen(
             lateFeePaid = currency.format(receipt.lateFeePaid),
             previousBalance = currency.format(receipt.previousBalance),
             paymentMethod = receipt.paymentMethod,
-            status = receipt.status,
+            status = paymentStatusLabel(receipt.status),
             isCancelled = isCancelled,
         )
 
@@ -212,7 +212,7 @@ internal fun ReceiptDetailScreen(
                 commissionValue = commission.commissionValue,
                 baseAmount = currency.format(commission.baseAmount),
                 commissionAmount = currency.format(commission.commissionAmount),
-                status = commission.status,
+                status = commissionStatusLabel(commission.status),
                 paidAt = commission.paidAt,
             )
         }

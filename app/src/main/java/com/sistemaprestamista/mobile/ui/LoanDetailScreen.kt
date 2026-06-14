@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.AllocationMode
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
@@ -665,6 +666,7 @@ private fun LoanHeaderCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Column(
+                        modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Text(
@@ -676,14 +678,18 @@ private fun LoanHeaderCard(
 
                         Text(
                             text = "#${loan.loanNumber}",
-                            style = MaterialTheme.typography.headlineLarge,
+                            style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
 
+                    Spacer(modifier = Modifier.width(12.dp))
+
                     LoanStatusBadge(
-                        text = loan.status,
+                        text = loanStatusLabel(loan.status),
                     )
                 }
 
@@ -827,7 +833,7 @@ private fun LoanStatusBadge(
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = text.lowercase(),
+            text = text,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = Color.White,
@@ -1106,7 +1112,7 @@ private fun LoanInstallmentCard(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 InstallmentStatusBadge(
-                    text = if (isLate) "atrasado" else installment.status,
+                    text = if (isLate) "Atrasada" else installmentStatusLabel(installment.status),
                     isLate = isLate,
                 )
 

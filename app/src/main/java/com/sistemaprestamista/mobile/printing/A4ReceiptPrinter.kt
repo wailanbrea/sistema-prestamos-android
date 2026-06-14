@@ -6,6 +6,7 @@ import android.print.PrintManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
+import com.sistemaprestamista.mobile.ui.paymentStatusLabel
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -61,7 +62,7 @@ class A4ReceiptPrinter(
                     ${row("Prestamo", receipt.loanNumber ?: receipt.loanId.toString())}
                     ${row("Fecha", receipt.paymentDate ?: "-")}
                     ${row("Metodo", receipt.paymentMethod)}
-                    ${row("Estado", receipt.status)}
+                    ${row("Estado", paymentStatusLabel(receipt.status))}
                 </div>
                 <div class="box">
                     ${row("Monto pagado", currency.format(receipt.amount), "total")}
