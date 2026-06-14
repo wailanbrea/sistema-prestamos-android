@@ -457,6 +457,11 @@ class PrestamistaApiClient(
         return json.optJSONArray("data").mapObjects(::parsePayment)
     }
 
+    fun adminPayment(token: String, paymentId: Long): PaymentReceipt {
+        val json = request(path = "admin/payments/$paymentId", method = "GET", token = token)
+        return parsePayment(json.getJSONObject("data"))
+    }
+
     fun adminCancelPayment(token: String, paymentId: Long, reason: String): PaymentReceipt {
         val payload = JSONObject().put("cancellation_reason", reason)
         val json = request(path = "admin/payments/$paymentId/cancel", method = "POST", token = token, body = payload)

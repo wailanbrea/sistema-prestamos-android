@@ -294,6 +294,9 @@ class PrestamistaRepository(
     fun adminPayments(): List<PaymentReceipt> =
         apiClient.adminPayments(requiredToken())
 
+    fun adminPayment(paymentId: Long): PaymentReceipt =
+        apiClient.adminPayment(requiredToken(), paymentId)
+
     fun adminCancelPayment(paymentId: Long, reason: String): PaymentReceipt =
         apiClient.adminCancelPayment(requiredToken(), paymentId, reason)
 

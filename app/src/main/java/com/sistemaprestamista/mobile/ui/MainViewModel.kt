@@ -923,11 +923,15 @@ class MainViewModel(
             return
         }
 
+        // El back-office (cartera global) consulta admin/payments; el cobrador, su
+        // propia cartera. Usar el endpoint correcto evita el "no query results".
+        val viaAdmin = uiState.value.canManagePortfolio
+
         viewModelScope.launch {
             _uiState.update { it.copy(isDetailLoading = true, errorMessage = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
-                    repository.collectorPayment(paymentId)
+                    if (viaAdmin) repository.adminPayment(paymentId) else repository.collectorPayment(paymentId)
                 }
             }.onSuccess { payment ->
                 _uiState.update {
