@@ -21,6 +21,7 @@ class PendingPaymentStore(context: Context) : SQLiteOpenHelper(
                 payment_date text not null,
                 payment_method text not null,
                 allocation_mode text not null default 'auto',
+                target_installment_id integer,
                 mobile_uuid text not null unique,
                 status text not null,
                 attempts integer not null default 0,
@@ -38,6 +39,9 @@ class PendingPaymentStore(context: Context) : SQLiteOpenHelper(
         if (oldVersion < 2) {
             db.execSQL("alter table pending_payments add column allocation_mode text not null default 'auto'")
         }
+        if (oldVersion < 3) {
+            db.execSQL("alter table pending_payments add column target_installment_id integer")
+        }
     }
 
     fun create(
@@ -46,6 +50,7 @@ class PendingPaymentStore(context: Context) : SQLiteOpenHelper(
         paymentDate: String,
         paymentMethod: String,
         allocationMode: String,
+        targetInstallmentId: Long?,
         mobileUuid: String,
     ): PendingPayment {
         val now = System.currentTimeMillis()
@@ -55,6 +60,7 @@ class PendingPaymentStore(context: Context) : SQLiteOpenHelper(
             put("payment_date", paymentDate)
             put("payment_method", paymentMethod)
             put("allocation_mode", allocationMode)
+            if (targetInstallmentId != null) put("target_installment_id", targetInstallmentId) else putNull("target_installment_id")
             put("mobile_uuid", mobileUuid)
             put("status", PendingPaymentStatus.Pending.storageValue)
             put("attempts", 0)
@@ -180,6 +186,7 @@ class PendingPaymentStore(context: Context) : SQLiteOpenHelper(
             paymentDate = getString(getColumnIndexOrThrow("payment_date")),
             paymentMethod = getString(getColumnIndexOrThrow("payment_method")),
             allocationMode = getString(getColumnIndexOrThrow("allocation_mode")) ?: "auto",
+            targetInstallmentId = getLong(getColumnIndexOrThrow("target_installment_id")).takeIf { !isNull(getColumnIndexOrThrow("target_installment_id")) },
             mobileUuid = getString(getColumnIndexOrThrow("mobile_uuid")),
             status = PendingPaymentStatus.fromStorage(getString(getColumnIndexOrThrow("status"))),
             attempts = getInt(getColumnIndexOrThrow("attempts")),
@@ -191,6 +198,6 @@ class PendingPaymentStore(context: Context) : SQLiteOpenHelper(
 
     private companion object {
         const val DATABASE_NAME = "pending_payments.db"
-        const val DATABASE_VERSION = 2
+        const val DATABASE_VERSION = 3
     }
 }

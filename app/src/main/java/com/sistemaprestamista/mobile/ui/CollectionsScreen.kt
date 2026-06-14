@@ -80,7 +80,7 @@ private val SuccessSoft = Color(0xFF6FFBBE)
 @Composable
 internal fun CollectionsScreen(
     state: AppUiState,
-    onRegisterPayment: (Long, String, String, String) -> Unit,
+    onRegisterPayment: (Long, String, String, String, Long?) -> Unit,
     onOpenInstallment: (Long) -> Unit,
 ) {
     val installments = state.collectorInstallments
@@ -171,7 +171,7 @@ private fun CollectionsHeader(
 private fun CollectionInstallmentCard(
     installment: InstallmentSummary,
     isLoading: Boolean,
-    onRegisterPayment: (Long, String, String, String) -> Unit,
+    onRegisterPayment: (Long, String, String, String, Long?) -> Unit,
     onOpenInstallment: (Long) -> Unit,
 ) {
     var amount by remember(installment.id) {
@@ -376,6 +376,7 @@ private fun CollectionInstallmentCard(
                     amount,
                     paymentMethod.apiValue,
                     allocationMode.apiValue,
+                    installment.id,
                 )
             },
         )

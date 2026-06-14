@@ -185,6 +185,7 @@ class PrestamistaRepository(
         paymentDate: String,
         paymentMethod: String,
         allocationMode: String,
+        targetInstallmentId: Long?,
         mobileUuid: String,
     ): PaymentRegistrationResult {
         val pendingPayment = pendingPaymentStore.create(
@@ -193,6 +194,7 @@ class PrestamistaRepository(
             paymentDate = paymentDate,
             paymentMethod = paymentMethod,
             allocationMode = allocationMode,
+            targetInstallmentId = targetInstallmentId,
             mobileUuid = mobileUuid,
         )
 
@@ -230,6 +232,7 @@ class PrestamistaRepository(
         paymentDate: String,
         paymentMethod: String,
         allocationMode: String,
+        targetInstallmentId: Long?,
         mobileUuid: String,
     ): PaymentReceipt {
         return apiClient.adminRegisterPayment(
@@ -240,6 +243,7 @@ class PrestamistaRepository(
             paymentMethod = paymentMethod,
             mobileUuid = mobileUuid,
             allocationMode = allocationMode,
+            targetInstallmentId = targetInstallmentId,
         )
     }
 
@@ -376,6 +380,7 @@ class PrestamistaRepository(
             paymentMethod = pendingPayment.paymentMethod,
             mobileUuid = pendingPayment.mobileUuid,
             allocationMode = pendingPayment.allocationMode,
+            targetInstallmentId = pendingPayment.targetInstallmentId,
         )
     }
 

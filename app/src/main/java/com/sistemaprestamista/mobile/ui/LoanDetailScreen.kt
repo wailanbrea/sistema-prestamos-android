@@ -94,7 +94,7 @@ internal fun LoanDetailScreen(
     isLoading: Boolean,
     fallbackLoan: LoanSummary?,
     onOpenInstallment: (Long) -> Unit,
-    onRegisterPayment: ((Long, String, String, String) -> Unit)? = null,
+    onRegisterPayment: ((Long, String, String, String, Long?) -> Unit)? = null,
     isPaymentLoading: Boolean = false,
     onGenerateDocument: ((Long, String) -> Unit)? = null,
     isDocumentGenerating: Boolean = false,
@@ -146,7 +146,7 @@ internal fun LoanDetailScreen(
             onDismiss = { showPaymentDialog = false },
             onConfirm = { amountText, methodApiValue, allocationModeApiValue ->
                 showPaymentDialog = false
-                onRegisterPayment(loan.id, amountText, methodApiValue, allocationModeApiValue)
+                onRegisterPayment(loan.id, amountText, methodApiValue, allocationModeApiValue, null)
             },
         )
     }

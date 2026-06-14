@@ -249,26 +249,26 @@ internal fun LoanEditScreen(
                 )
             }
 
-            FormSectionCard(title = "Mora") {
-                OptionSelector(
-                    label = "Tipo de mora",
-                    options = LateFeeTypes,
-                    selected = lateFeeType,
-                    onSelected = { lateFeeType = it },
-                )
-                if (lateFeeType.first != "none") {
-                    FormField(
-                        value = lateFeeValue,
-                        onValueChange = { lateFeeValue = it },
-                        label = "Valor de mora",
-                        keyboardType = KeyboardType.Decimal,
-                    )
-                }
-            }
-
             FormSectionCard(title = "Fechas") {
                 FormField(value = startDate, onValueChange = { startDate = it }, label = "Fecha de inicio * (YYYY-MM-DD)")
                 FormField(value = firstPaymentDate, onValueChange = { firstPaymentDate = it }, label = "Fecha primer pago * (YYYY-MM-DD)")
+            }
+        }
+
+        FormSectionCard(title = "Mora") {
+            OptionSelector(
+                label = "Tipo de mora",
+                options = LateFeeTypes,
+                selected = lateFeeType,
+                onSelected = { lateFeeType = it },
+            )
+            if (lateFeeType.first != "none") {
+                FormField(
+                    value = lateFeeValue,
+                    onValueChange = { lateFeeValue = it },
+                    label = "Valor de mora",
+                    keyboardType = KeyboardType.Decimal,
+                )
             }
         }
 
@@ -287,8 +287,8 @@ internal fun LoanEditScreen(
                         paymentFrequency = if (canEditFinancials) paymentFrequency.first else null,
                         calculationMethod = if (canEditFinancials) calculationMethod.first else null,
                         termQuantity = if (canEditFinancials) termQuantity.toIntOrNull() else null,
-                        lateFeeType = if (canEditFinancials) lateFeeType.first else null,
-                        lateFeeValue = if (canEditFinancials && lateFeeType.first != "none") lateFeeValue.toDoubleOrNull() else null,
+                        lateFeeType = lateFeeType.first,
+                        lateFeeValue = if (lateFeeType.first != "none") lateFeeValue.toDoubleOrNull() else 0.0,
                         startDate = if (canEditFinancials) startDate.trim().takeIf { it.isNotBlank() } else null,
                         firstPaymentDate = if (canEditFinancials) firstPaymentDate.trim().takeIf { it.isNotBlank() } else null,
                     ),

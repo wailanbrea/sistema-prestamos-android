@@ -292,6 +292,7 @@ class PrestamistaApiClient(
         paymentMethod: String,
         mobileUuid: String,
         allocationMode: String = "auto",
+        targetInstallmentId: Long? = null,
     ): PaymentReceipt {
         val payload = JSONObject()
             .put("loan_id", loanId)
@@ -300,6 +301,7 @@ class PrestamistaApiClient(
             .put("payment_method", paymentMethod)
             .put("mobile_uuid", mobileUuid)
             .put("allocation_mode", allocationMode)
+        targetInstallmentId?.let { payload.put("target_installment_id", it) }
 
         val json = request(
             path = "collector/payments",
@@ -342,6 +344,7 @@ class PrestamistaApiClient(
         paymentMethod: String,
         mobileUuid: String,
         allocationMode: String = "auto",
+        targetInstallmentId: Long? = null,
     ): PaymentReceipt {
         val payload = JSONObject()
             .put("loan_id", loanId)
@@ -350,6 +353,7 @@ class PrestamistaApiClient(
             .put("payment_method", paymentMethod)
             .put("mobile_uuid", mobileUuid)
             .put("allocation_mode", allocationMode)
+        targetInstallmentId?.let { payload.put("target_installment_id", it) }
 
         val json = request(
             path = "admin/payments",

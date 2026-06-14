@@ -7,6 +7,7 @@ data class PendingPayment(
     val paymentDate: String,
     val paymentMethod: String,
     val allocationMode: String,
+    val targetInstallmentId: Long?,
     val mobileUuid: String,
     val status: PendingPaymentStatus,
     val attempts: Int,
