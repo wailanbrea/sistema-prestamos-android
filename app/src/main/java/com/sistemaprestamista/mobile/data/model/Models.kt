@@ -190,6 +190,8 @@ data class LoanFinancialSummary(
     val installmentsLate: Int,
     val paymentsTotal: Int,
     val amountPaid: Double,
+    val overdueInstallmentsCount: Int = 0,
+    val overdueInstallmentsTotal: Double = 0.0,
 )
 
 data class LoanDetail(

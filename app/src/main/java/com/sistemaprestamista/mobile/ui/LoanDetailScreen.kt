@@ -203,6 +203,16 @@ internal fun LoanDetailScreen(
             )
         }
 
+        val overdueCount = detail?.financialSummary?.overdueInstallmentsCount ?: 0
+        if (overdueCount > 0) {
+            item {
+                OverdueInstallmentsCard(
+                    count = overdueCount,
+                    total = currency.format(detail?.financialSummary?.overdueInstallmentsTotal ?: 0.0),
+                )
+            }
+        }
+
         item {
             SectionHeader(
                 title = "Cuotas",
@@ -303,6 +313,51 @@ internal fun LoanDetailScreen(
                     text = { Text("Registrar pago", fontWeight = FontWeight.Bold) },
                 )
             }
+        }
+    }
+}
+
+/**
+ * Cuadro destacado con el total adeudado en cuotas vencidas (vencimiento pasado y
+ * sin saldar). El monto y el conteo vienen ya calculados desde el backend.
+ */
+@Composable
+private fun OverdueInstallmentsCard(
+    count: Int,
+    total: String,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = ErrorContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Cuotas vencidas",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Error,
+                )
+                Text(
+                    text = if (count == 1) "1 cuota vencida sin saldar" else "$count cuotas vencidas sin saldar",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Error,
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = total,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = Error,
+                maxLines = 1,
+            )
         }
     }
 }
