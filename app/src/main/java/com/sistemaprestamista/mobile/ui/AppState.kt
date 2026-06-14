@@ -58,6 +58,8 @@ data class AppUiState(
     val selectedPaymentDetail: PaymentReceipt? = null,
     val isDetailLoading: Boolean = false,
     val lastPaymentReceipt: PaymentReceipt? = null,
+    val selectedLoanContract: com.sistemaprestamista.mobile.data.model.ContractSummary? = null,
+    val isContractLoading: Boolean = false,
     // Back-office / administrador
     val adminClients: List<ClientSummary> = emptyList(),
     val adminLoans: List<LoanSummary> = emptyList(),
@@ -152,6 +154,12 @@ data class AppUiState(
 
     /** Puede ver reportes/informes. */
     val canViewReports: Boolean = permissions.contains("reports.view")
+
+    /**
+     * Contratos digitales (mismo gate que la web: legal.manage). Requiere además
+     * cartera global, ya que el endpoint vive bajo admin/.
+     */
+    val canManageContracts: Boolean = canManagePortfolio && permissions.contains("legal.manage")
 
     /**
      * Caja: registrar gastos / ver caja. Se limita a roles SIN cartera global

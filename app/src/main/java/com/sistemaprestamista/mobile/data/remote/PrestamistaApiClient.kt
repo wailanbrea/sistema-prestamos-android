@@ -5,6 +5,7 @@ import com.sistemaprestamista.mobile.data.ResponseCache
 import com.sistemaprestamista.mobile.data.model.AdminReportSummary
 import com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow
 import com.sistemaprestamista.mobile.data.model.Company
+import com.sistemaprestamista.mobile.data.model.ContractSummary
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientFinancialSummary
 import com.sistemaprestamista.mobile.data.model.ClientReference
@@ -332,6 +333,28 @@ class PrestamistaApiClient(
         )
 
         return parseLoanDocument(json.getJSONObject("data"))
+    }
+
+    /**
+     * Contrato digital más reciente de un préstamo (o null si aún no se ha generado).
+     * Requiere permiso legal.manage (ruta admin).
+     */
+    fun adminLoanContract(token: String, loanId: Long): ContractSummary? {
+        val json = request(path = "admin/loans/$loanId/contract", method = "GET", token = token)
+        val data = json.opt("data")
+        return if (data is JSONObject) parseContract(data) else null
+    }
+
+    /** Genera un contrato digital para el préstamo y devuelve los enlaces de firma. */
+    fun adminGenerateContract(token: String, loanId: Long, contractType: String = "loan_contract"): ContractSummary {
+        val json = request(
+            path = "admin/loans/$loanId/contract",
+            method = "POST",
+            token = token,
+            body = JSONObject().put("contract_type", contractType),
+        )
+
+        return parseContract(json.getJSONObject("data"))
     }
 
     // --- Back-office / administrador ---
@@ -1101,6 +1124,19 @@ class PrestamistaApiClient(
             title = json.nullableString("title"),
             downloadUrl = json.nullableString("download_url"),
             createdAt = json.nullableString("created_at"),
+        )
+    }
+
+    private fun parseContract(json: JSONObject): ContractSummary {
+        return ContractSummary(
+            uuid = json.getString("uuid"),
+            contractNumber = json.optString("contract_number"),
+            status = json.optString("status"),
+            version = json.optInt("version", 1),
+            signedAt = json.nullableString("signed_at"),
+            signingUrl = json.nullableString("signing_url"),
+            whatsappUrl = json.nullableString("whatsapp_url"),
+            verifyUrl = json.nullableString("verify_url"),
         )
     }
 

@@ -98,6 +98,10 @@ internal fun LoanDetailScreen(
     isPaymentLoading: Boolean = false,
     onGenerateDocument: ((Long, String) -> Unit)? = null,
     isDocumentGenerating: Boolean = false,
+    contract: com.sistemaprestamista.mobile.data.model.ContractSummary? = null,
+    canManageContracts: Boolean = false,
+    isContractLoading: Boolean = false,
+    onGenerateContract: ((Long) -> Unit)? = null,
     onEditLoan: (() -> Unit)? = null,
     onDeleteLoan: (() -> Unit)? = null,
     isDeletingLoan: Boolean = false,
@@ -234,6 +238,20 @@ internal fun LoanDetailScreen(
             }
         }
 
+        if (canManageContracts) {
+            item {
+                SectionHeader(title = "Contrato digital")
+            }
+
+            item {
+                LoanContractCard(
+                    contract = contract,
+                    isLoading = isContractLoading,
+                    onGenerate = { onGenerateContract?.invoke(loan.id) },
+                )
+            }
+        }
+
         if (payments.isNotEmpty()) {
             item {
                 SectionHeader(title = "Pagos relacionados")
@@ -289,7 +307,115 @@ internal fun LoanDetailScreen(
 }
 
 /**
- * Documentos legales del préstamo (contrato, pagaré, desembolso, etc.).
+ * Contrato digital del préstamo. Permite generarlo y compartir el enlace de firma
+ * por WhatsApp; el cliente firma en una página web desde su celular. Espeja el
+ * módulo de contratos de la web.
+ */
+@Composable
+private fun LoanContractCard(
+    contract: com.sistemaprestamista.mobile.data.model.ContractSummary?,
+    isLoading: Boolean,
+    onGenerate: () -> Unit,
+) {
+    val context = LocalContext.current
+
+    fun openUrl(url: String?) {
+        if (!url.isNullOrBlank()) {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        }
+    }
+
+    val statusLabel = when (contract?.status) {
+        "generated" -> "Generado"
+        "sent" -> "Enviado"
+        "viewed" -> "Visto"
+        "signed" -> "Firmado"
+        "cancelled" -> "Anulado"
+        "expired" -> "Vencido"
+        else -> contract?.status.orEmpty()
+    }
+    val isSigned = contract?.status == "signed"
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (contract == null) {
+                Text(
+                    text = "Genera el contrato y envíalo al cliente para que lo firme desde su celular.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextVariant,
+                )
+                Button(
+                    onClick = onGenerate,
+                    enabled = !isLoading,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    } else {
+                        Text("Generar contrato digital", fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text(contract.contractNumber, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = TextMain)
+                        Text("v${contract.version}", style = MaterialTheme.typography.labelSmall, color = TextVariant)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSigned) SuccessSoft else SecondaryContainer)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Text(
+                            text = statusLabel,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSigned) Success else PrimaryContainer,
+                        )
+                    }
+                }
+
+                if (isSigned) {
+                    Text("El cliente firmó el contrato.", style = MaterialTheme.typography.bodyMedium, color = Success)
+                    OutlinedButton(onClick = { openUrl(contract.verifyUrl) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Ver verificación")
+                    }
+                } else {
+                    if (contract.whatsappUrl != null) {
+                        Button(
+                            onClick = { openUrl(contract.whatsappUrl) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Success),
+                        ) {
+                            Text("Enviar por WhatsApp", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (contract.signingUrl != null) {
+                        OutlinedButton(onClick = { openUrl(contract.signingUrl) }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Abrir enlace de firma")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
  * Espeja la sección de documentos del sistema web: cada tipo se puede
  * generar una vez y luego abrir/compartir su PDF.
  */

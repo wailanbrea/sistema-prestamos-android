@@ -233,6 +233,22 @@ data class LoanDocument(
     val createdAt: String?,
 )
 
+/**
+ * Contrato digital del préstamo. `signingUrl`/`whatsappUrl` solo existen mientras el
+ * contrato no esté finalizado (firmado/anulado/vencido). La firma del cliente ocurre
+ * en una página web responsive abierta desde el `signingUrl`.
+ */
+data class ContractSummary(
+    val uuid: String,
+    val contractNumber: String,
+    val status: String,
+    val version: Int,
+    val signedAt: String?,
+    val signingUrl: String?,
+    val whatsappUrl: String?,
+    val verifyUrl: String?,
+)
+
 data class InstallmentSummary(
     val id: Long,
     val loanId: Long,

@@ -132,6 +132,8 @@ fun PrestamistaApp(
         onLoadMoreAdminLoans = viewModel::loadMoreAdminLoans,
         onRegisterAdminPayment = viewModel::registerAdminPayment,
         onGenerateLoanDocument = viewModel::generateLoanDocument,
+        onLoadLoanContract = viewModel::loadLoanContract,
+        onGenerateContract = viewModel::generateContract,
         onCreateAdminClient = viewModel::createAdminClient,
         onLoadAdminCollectors = viewModel::loadAdminCollectors,
         onCreateAdminLoan = viewModel::createAdminLoan,
@@ -185,6 +187,8 @@ private fun AuthenticatedShell(
     onLoadMoreAdminLoans: () -> Unit,
     onRegisterAdminPayment: (Long, String, String, String, Long?) -> Unit,
     onGenerateLoanDocument: (Long, String) -> Unit,
+    onLoadLoanContract: (Long) -> Unit,
+    onGenerateContract: (Long) -> Unit,
     onCreateAdminClient: (com.sistemaprestamista.mobile.data.model.NewClientInput) -> Unit,
     onLoadAdminCollectors: () -> Unit,
     onCreateAdminLoan: (com.sistemaprestamista.mobile.data.model.NewLoanInput) -> Unit,
@@ -608,6 +612,7 @@ private fun AuthenticatedShell(
                     LaunchedEffect(loanId) {
                         if (loanId != null) {
                             onLoadAdminLoanDetail(loanId)
+                            if (state.canManageContracts) onLoadLoanContract(loanId)
                         }
                     }
 
@@ -621,6 +626,10 @@ private fun AuthenticatedShell(
                         isPaymentLoading = state.isLoading,
                         onGenerateDocument = if (state.canGenerateDocuments) onGenerateLoanDocument else null,
                         isDocumentGenerating = state.isDocumentGenerating,
+                        contract = state.selectedLoanContract?.takeIf { state.selectedLoanDetail?.summary?.id == loanId },
+                        canManageContracts = state.canManageContracts,
+                        isContractLoading = state.isContractLoading,
+                        onGenerateContract = if (state.canManageContracts) onGenerateContract else null,
                         onEditLoan = if (state.canEditLoan && loanId != null) {
                             { navController.navigate(AppRoutes.adminLoanEdit(loanId)) }
                         } else {

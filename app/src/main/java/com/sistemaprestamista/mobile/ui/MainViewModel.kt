@@ -333,6 +333,50 @@ class MainViewModel(
         }
     }
 
+    /** Carga el contrato digital más reciente del préstamo (o null) para mostrar su estado. */
+    fun loadLoanContract(loanId: Long) {
+        if (!uiState.value.canManageContracts || uiState.value.isContractLoading) return
+
+        viewModelScope.launch {
+            // Limpia el contrato previo para no mostrar el de otro préstamo mientras carga.
+            _uiState.update { it.copy(isContractLoading = true, selectedLoanContract = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.loanContract(loanId) }
+            }.onSuccess { contract ->
+                _uiState.update { it.copy(isContractLoading = false, selectedLoanContract = contract) }
+            }.onFailure {
+                _uiState.update { it.copy(isContractLoading = false) }
+            }
+        }
+    }
+
+    /** Genera el contrato digital del préstamo y actualiza el estado en pantalla. */
+    fun generateContract(loanId: Long) {
+        if (uiState.value.isContractLoading) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isContractLoading = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.generateContract(loanId) }
+            }.onSuccess { contract ->
+                _uiState.update {
+                    it.copy(
+                        isContractLoading = false,
+                        selectedLoanContract = contract,
+                        successMessage = "Contrato ${contract.contractNumber} generado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isContractLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /** Limpia el contrato cargado al salir del detalle del préstamo. */
+    fun clearLoanContract() {
+        _uiState.update { it.copy(selectedLoanContract = null) }
+    }
+
     /** Alta de cliente desde back-office: mismo contrato que la web (clients.create). */
     fun createAdminClient(input: com.sistemaprestamista.mobile.data.model.NewClientInput) {
         if (uiState.value.isClientSaving) return

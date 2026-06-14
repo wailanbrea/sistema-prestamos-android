@@ -250,6 +250,12 @@ class PrestamistaRepository(
     fun generateLoanDocument(loanId: Long, documentType: String, viaAdmin: Boolean): com.sistemaprestamista.mobile.data.model.LoanDocument =
         apiClient.generateLoanDocument(requiredToken(), loanId, documentType, viaAdmin)
 
+    fun loanContract(loanId: Long): com.sistemaprestamista.mobile.data.model.ContractSummary? =
+        apiClient.adminLoanContract(requiredToken(), loanId)
+
+    fun generateContract(loanId: Long, contractType: String = "loan_contract"): com.sistemaprestamista.mobile.data.model.ContractSummary =
+        apiClient.adminGenerateContract(requiredToken(), loanId, contractType)
+
     fun adminCreateClient(input: com.sistemaprestamista.mobile.data.model.NewClientInput): ClientSummary =
         apiClient.adminCreateClient(requiredToken(), input)
 
