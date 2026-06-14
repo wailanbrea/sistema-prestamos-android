@@ -1173,7 +1173,7 @@ private fun translateInstallmentStatus(status: String): String {
     return when (status.trim().lowercase()) {
         "pending" -> "Pendiente"
         "partial" -> "Pago parcial"
-        "late" -> "Atrasada"
+        "late" -> "Vencida"
         "paid" -> "Pagada"
         else -> status.replaceFirstChar { it.uppercase() }
     }

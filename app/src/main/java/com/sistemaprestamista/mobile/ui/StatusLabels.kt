@@ -25,7 +25,7 @@ fun loanStatusLabel(status: String?): String = when (status?.trim()?.lowercase()
 fun installmentStatusLabel(status: String?): String = when (status?.trim()?.lowercase()) {
     "pending" -> "Pendiente"
     "partial" -> "Pago parcial"
-    "late", "overdue" -> "Atrasada"
+    "late", "overdue" -> "Vencida"
     "paid" -> "Pagada"
     "cancelled", "canceled" -> "Cancelada"
     else -> status?.replaceFirstChar { it.uppercase() }.orEmpty()

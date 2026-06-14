@@ -1213,7 +1213,7 @@ private fun LoanInstallmentCard(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 InstallmentStatusBadge(
-                    text = if (isLate) "Atrasada" else installmentStatusLabel(installment.status),
+                    text = if (isLate) "Vencida" else installmentStatusLabel(installment.status),
                     isLate = isLate,
                 )
 
