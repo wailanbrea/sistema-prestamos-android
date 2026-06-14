@@ -2,6 +2,7 @@ package com.sistemaprestamista.mobile.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +65,7 @@ private val BorderSoft = Color(0xFFE4E7EC)
 internal fun HomeScreen(
     state: AppUiState,
     onOpenReceipt: () -> Unit,
+    onOpenPayment: (Long) -> Unit = {},
 ) {
     LazyColumn(
         modifier = Modifier
@@ -99,7 +101,7 @@ internal fun HomeScreen(
         }
 
         item {
-            PaymentHistoryPreview(state.paymentHistory)
+            PaymentHistoryPreview(state.paymentHistory, onOpenPayment)
         }
     }
 }
@@ -416,7 +418,10 @@ private fun LastReceiptModernCard(
 }
 
 @Composable
-private fun PaymentHistoryPreview(payments: List<PaymentReceipt>) {
+private fun PaymentHistoryPreview(
+    payments: List<PaymentReceipt>,
+    onOpenPayment: (Long) -> Unit = {},
+) {
     val currency = rememberCurrency()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -458,6 +463,7 @@ private fun PaymentHistoryPreview(payments: List<PaymentReceipt>) {
                         amount = currency.format(payment.amount),
                         commissionAmount = currency.format(payment.commission?.commissionAmount ?: 0.0),
                         showDivider = index < payments.take(5).lastIndex,
+                        onClick = { onOpenPayment(payment.id) },
                     )
                 }
             }
@@ -471,11 +477,13 @@ private fun PaymentHistoryRow(
     amount: String,
     commissionAmount: String,
     showDivider: Boolean,
+    onClick: () -> Unit = {},
 ) {
     Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable(onClick = onClick)
                 .padding(vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,

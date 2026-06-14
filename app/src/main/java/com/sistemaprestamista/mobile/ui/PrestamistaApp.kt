@@ -310,6 +310,10 @@ private fun AuthenticatedShell(
                                 navController.navigate(AppRoutes.ReceiptDetail)
                             }
                         },
+                        onOpenPayment = { paymentId ->
+                            onLoadPaymentDetail(paymentId)
+                            navController.navigate(AppRoutes.ReceiptDetail)
+                        },
                     )
                 }
 
@@ -838,14 +842,10 @@ private fun AuthenticatedShell(
                 }
 
                 composable(AppRoutes.ReceiptDetail) {
-                    LaunchedEffect(state.lastPaymentReceipt?.id) {
-                        val paymentId = state.lastPaymentReceipt?.id
-
-                        if (paymentId != null) {
-                            onLoadPaymentDetail(paymentId)
-                        }
-                    }
-
+                    // El pago a mostrar ya se fija (selectedPaymentDetail) antes de navegar
+                    // aquí: al registrar un pago, al tocar el "último recibo" o una fila del
+                    // historial. No se recarga lastPaymentReceipt para no sobreescribir la
+                    // selección del usuario.
                     ReceiptDetailScreen(
                         receipt = state.selectedPaymentDetail ?: state.lastPaymentReceipt,
                         printSettingsStore = printSettingsStore,
