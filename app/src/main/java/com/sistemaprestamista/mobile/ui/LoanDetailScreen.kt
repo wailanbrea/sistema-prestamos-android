@@ -2,6 +2,7 @@ package com.sistemaprestamista.mobile.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AttachMoney
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ChevronRight
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.outlined.Percent
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -41,6 +44,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -125,6 +129,7 @@ internal fun LoanDetailScreen(
 
     var showPaymentDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var actionsExpanded by remember { mutableStateOf(false) }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -279,41 +284,63 @@ internal fun LoanDetailScreen(
         }
     }
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.End,
-        ) {
-            if (onEditLoan != null) {
-                ExtendedFloatingActionButton(
-                    onClick = onEditLoan,
-                    containerColor = Color(0xFF2E6DA4),
-                    contentColor = Color.White,
-                    icon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
-                    text = { Text("Editar préstamo", fontWeight = FontWeight.Bold) },
-                )
-            }
+        // Un solo botón que despliega las acciones disponibles (ocupa menos espacio).
+        val hasActions = onEditLoan != null || onDeleteLoan != null || canPay
+        if (hasActions) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.End,
+            ) {
+                AnimatedVisibility(visible = actionsExpanded) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = Alignment.End,
+                    ) {
+                        if (canPay) {
+                            ExtendedFloatingActionButton(
+                                onClick = { actionsExpanded = false; showPaymentDialog = true },
+                                containerColor = PrimaryContainer,
+                                contentColor = Color.White,
+                                icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
+                                text = { Text("Registrar pago", fontWeight = FontWeight.Bold) },
+                            )
+                        }
 
-            if (onDeleteLoan != null) {
-                ExtendedFloatingActionButton(
-                    onClick = { showDeleteDialog = true },
-                    containerColor = Color(0xFFDC2626),
-                    contentColor = Color.White,
-                    icon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
-                    text = { Text("Eliminar préstamo", fontWeight = FontWeight.Bold) },
-                )
-            }
+                        if (onEditLoan != null) {
+                            ExtendedFloatingActionButton(
+                                onClick = { actionsExpanded = false; onEditLoan() },
+                                containerColor = Color(0xFF2E6DA4),
+                                contentColor = Color.White,
+                                icon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                                text = { Text("Editar préstamo", fontWeight = FontWeight.Bold) },
+                            )
+                        }
 
-            if (canPay) {
-                ExtendedFloatingActionButton(
-                    onClick = { showPaymentDialog = true },
+                        if (onDeleteLoan != null) {
+                            ExtendedFloatingActionButton(
+                                onClick = { actionsExpanded = false; showDeleteDialog = true },
+                                containerColor = Color(0xFFDC2626),
+                                contentColor = Color.White,
+                                icon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                                text = { Text("Eliminar préstamo", fontWeight = FontWeight.Bold) },
+                            )
+                        }
+                    }
+                }
+
+                FloatingActionButton(
+                    onClick = { actionsExpanded = !actionsExpanded },
                     containerColor = PrimaryContainer,
                     contentColor = Color.White,
-                    icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                    text = { Text("Registrar pago", fontWeight = FontWeight.Bold) },
-                )
+                ) {
+                    Icon(
+                        imageVector = if (actionsExpanded) Icons.Outlined.Close else Icons.Outlined.MoreVert,
+                        contentDescription = if (actionsExpanded) "Cerrar acciones" else "Acciones",
+                    )
+                }
             }
         }
     }
