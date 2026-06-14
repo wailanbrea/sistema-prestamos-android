@@ -32,7 +32,8 @@ class A4ReceiptPrinter(
     }
 
     private fun html(receipt: PaymentReceipt): String {
-        val currency = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-DO"))
+        // Usa la moneda real del recibo (RD$/US$), no un símbolo fijo.
+        val currency = com.sistemaprestamista.mobile.ui.components.MoneyFormatter(receipt.currency.ifBlank { "RD$" })
 
         return """
             <!doctype html>

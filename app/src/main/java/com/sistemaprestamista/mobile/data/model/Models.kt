@@ -4,6 +4,8 @@ data class Company(
     val id: Long,
     val name: String,
     val status: String,
+    /** Moneda por defecto de la empresa (RD$/US$) para formatear montos en la app. */
+    val defaultCurrency: String = "RD$",
 )
 
 data class UserProfile(
@@ -324,6 +326,7 @@ data class PaymentReceipt(
     val receiptNumber: String,
     val loanId: Long,
     val loanNumber: String?,
+    val currency: String = "RD$",
     val client: ClientSummary?,
     val paymentDate: String?,
     val amount: Double,

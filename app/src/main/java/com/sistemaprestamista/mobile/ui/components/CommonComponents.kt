@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -91,11 +92,29 @@ fun LoadingSplash() {
     }
 }
 
-@Composable
-fun rememberCurrency(): NumberFormat {
-    return remember {
-        NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-DO"))
+/**
+ * Código de moneda activo (RD$/US$), provisto en la raíz de la app desde la
+ * configuración de la empresa. Las pantallas leen este valor vía rememberCurrency().
+ */
+val LocalCurrencyCode = staticCompositionLocalOf { "RD\$" }
+
+/**
+ * Formatea montos anteponiendo el símbolo real de la moneda de la empresa
+ * (RD$, US$, etc.) en vez de forzar el peso dominicano.
+ */
+class MoneyFormatter(private val symbol: String) {
+    private val numberFormat = NumberFormat.getNumberInstance(Locale.forLanguageTag("es-DO")).apply {
+        minimumFractionDigits = 2
+        maximumFractionDigits = 2
     }
+
+    fun format(amount: Number): String = "$symbol ${numberFormat.format(amount)}"
+}
+
+@Composable
+fun rememberCurrency(): MoneyFormatter {
+    val code = LocalCurrencyCode.current
+    return remember(code) { MoneyFormatter(code.ifBlank { "RD\$" }) }
 }
 
 /** Traduce la frecuencia de pago del API (daily/weekly/...) al español. */

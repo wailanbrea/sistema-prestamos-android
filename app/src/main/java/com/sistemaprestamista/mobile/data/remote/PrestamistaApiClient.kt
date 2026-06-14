@@ -946,6 +946,7 @@ class PrestamistaApiClient(
                 id = company.optLong("id"),
                 name = company.optString("name"),
                 status = company.optString("status"),
+                defaultCurrency = company.optString("default_currency", "RD$").ifBlank { "RD$" },
             ),
         )
     }
@@ -1191,6 +1192,7 @@ class PrestamistaApiClient(
             receiptNumber = json.getString("receipt_number"),
             loanId = json.getLong("loan_id"),
             loanNumber = json.nullableString("loan_number"),
+            currency = json.optString("currency", "RD$").ifBlank { "RD$" },
             client = json.optJSONObject("client")?.let(::parseClient),
             paymentDate = json.nullableString("payment_date"),
             amount = json.optDouble("amount", 0.0),

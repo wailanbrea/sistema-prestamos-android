@@ -69,7 +69,8 @@ class BluetoothReceiptPrinter(
     private fun receiptBytes(receipt: PaymentReceipt, paper: ThermalPaper): ByteArray {
         val builder = StringBuilder()
         val width = paper.columns
-        val currency = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-DO"))
+        // Usa la moneda real del recibo (RD$/US$), no un símbolo fijo.
+        val currency = com.sistemaprestamista.mobile.ui.components.MoneyFormatter(receipt.currency.ifBlank { "RD$" })
 
         builder.append(center("SISTEMA PRESTAMISTA", width)).append('\n')
         builder.append(center("RECIBO DE PAGO", width)).append('\n')

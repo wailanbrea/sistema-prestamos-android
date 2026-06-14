@@ -56,7 +56,9 @@ import androidx.navigation.compose.rememberNavController
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.printing.PrintSettingsStore
 import com.sistemaprestamista.mobile.tracking.RouteTrackingForegroundService
+import androidx.compose.runtime.CompositionLocalProvider
 import com.sistemaprestamista.mobile.ui.components.LoadingSplash
+import com.sistemaprestamista.mobile.ui.components.LocalCurrencyCode
 import com.sistemaprestamista.mobile.ui.navigation.AppDestination
 import com.sistemaprestamista.mobile.ui.navigation.AppRoutes
 
@@ -108,6 +110,9 @@ fun PrestamistaApp(
         return
     }
 
+    CompositionLocalProvider(
+        LocalCurrencyCode provides (state.user?.company?.defaultCurrency ?: "RD\$"),
+    ) {
     AuthenticatedShell(
         state = state,
         snackbarHostState = snackbarHostState,
@@ -159,6 +164,7 @@ fun PrestamistaApp(
         onStoreAdminCashMovement = viewModel::storeAdminCashMovement,
         onLogout = viewModel::logout,
     )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
