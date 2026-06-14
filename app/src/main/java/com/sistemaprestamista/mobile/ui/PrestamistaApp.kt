@@ -293,7 +293,10 @@ private fun AuthenticatedShell(
                     HomeScreen(
                         state = state,
                         onOpenReceipt = {
-                            if (state.lastPaymentReceipt != null) {
+                            val targetId = state.lastPaymentReceipt?.id
+                                ?: state.paymentHistory.firstOrNull()?.id
+                            if (targetId != null) {
+                                onLoadPaymentDetail(targetId)
                                 navController.navigate(AppRoutes.ReceiptDetail)
                             }
                         },

@@ -285,6 +285,9 @@ class PrestamistaRepository(
 
     fun adminDeleteLoan(loanId: Long) = apiClient.adminDeleteLoan(requiredToken(), loanId)
 
+    fun adminPayments(): List<PaymentReceipt> =
+        apiClient.adminPayments(requiredToken())
+
     fun adminCancelPayment(paymentId: Long, reason: String): PaymentReceipt =
         apiClient.adminCancelPayment(requiredToken(), paymentId, reason)
 

@@ -144,7 +144,7 @@ class MainViewModel(
                         collectorClients = collectorWorkload?.clients ?: it.collectorClients,
                         collectorLoans = collectorWorkload?.loans ?: it.collectorLoans,
                         collectorInstallments = collectorWorkload?.installments ?: it.collectorInstallments,
-                        paymentHistory = collectorWorkload?.payments ?: it.paymentHistory,
+                        paymentHistory = collectorWorkload?.payments ?: adminWorkload?.payments?.takeIf { p -> p.isNotEmpty() } ?: it.paymentHistory,
                         mapClients = collectorWorkload?.mapClients ?: it.mapClients,
                         collectorRoutes = collectorWorkload?.routes ?: it.collectorRoutes,
                         activeRouteSession = collectorWorkload?.activeRouteSession ?: it.activeRouteSession,
@@ -1335,7 +1335,7 @@ class MainViewModel(
             collectorClients = collectorWorkload?.clients.orEmpty(),
             collectorLoans = collectorWorkload?.loans.orEmpty(),
             collectorInstallments = collectorWorkload?.installments.orEmpty(),
-            paymentHistory = collectorWorkload?.payments.orEmpty(),
+            paymentHistory = collectorWorkload?.payments.orEmpty().ifEmpty { adminWorkload?.payments.orEmpty() },
             mapClients = collectorWorkload?.mapClients.orEmpty(),
             collectorRoutes = collectorWorkload?.routes.orEmpty(),
             activeRouteSession = collectorWorkload?.activeRouteSession,
@@ -1532,6 +1532,7 @@ class MainViewModel(
         val approvals = async(Dispatchers.IO) { if (canApprove) repository.adminApprovals() else emptyList() }
         val reportSummary = async(Dispatchers.IO) { if (canViewReports) runCatching { repository.adminReportSummary() }.getOrNull() else null }
         val collectorPerformance = async(Dispatchers.IO) { if (canViewReports) runCatching { repository.adminReportCollectors() }.getOrNull().orEmpty() else emptyList() }
+        val payments = async(Dispatchers.IO) { if (managePortfolio) runCatching { repository.adminPayments() }.getOrDefault(emptyList()) else emptyList() }
 
         val page = loansPage.await()
         AdminWorkload(
@@ -1541,6 +1542,7 @@ class MainViewModel(
             approvals = approvals.await(),
             reportSummary = reportSummary.await(),
             collectorPerformance = collectorPerformance.await(),
+            payments = payments.await(),
         )
     }
 
@@ -1782,6 +1784,7 @@ class MainViewModel(
         val approvals: List<com.sistemaprestamista.mobile.data.model.LoanSummary>,
         val reportSummary: com.sistemaprestamista.mobile.data.model.AdminReportSummary?,
         val collectorPerformance: List<com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow>,
+        val payments: List<com.sistemaprestamista.mobile.data.model.PaymentReceipt> = emptyList(),
     )
 
     private data class AuthBundle(
