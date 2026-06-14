@@ -1110,6 +1110,8 @@ class PrestamistaApiClient(
                 amountPaid = financial.optDouble("amount_paid", 0.0),
                 overdueInstallmentsCount = financial.optInt("overdue_installments_count", 0),
                 overdueInstallmentsTotal = financial.optDouble("overdue_installments_total", 0.0),
+                overdueLateFeeTotal = financial.optDouble("overdue_late_fee_total", 0.0),
+                totalDueToday = financial.optDouble("total_due_today", 0.0),
             ),
             installments = json.optJSONArray("installments").mapObjects(::parseInstallment),
             payments = json.optJSONArray("payments").mapObjects(::parsePayment),

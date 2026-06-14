@@ -208,7 +208,9 @@ internal fun LoanDetailScreen(
             item {
                 OverdueInstallmentsCard(
                     count = overdueCount,
-                    total = currency.format(detail?.financialSummary?.overdueInstallmentsTotal ?: 0.0),
+                    overdueTotal = currency.format(detail?.financialSummary?.overdueInstallmentsTotal ?: 0.0),
+                    lateFeeTotal = currency.format(detail?.financialSummary?.overdueLateFeeTotal ?: 0.0),
+                    dueTodayTotal = currency.format(detail?.financialSummary?.totalDueToday ?: 0.0),
                 )
             }
         }
@@ -318,47 +320,91 @@ internal fun LoanDetailScreen(
 }
 
 /**
- * Cuadro destacado con el total adeudado en cuotas vencidas (vencimiento pasado y
- * sin saldar). El monto y el conteo vienen ya calculados desde el backend.
+ * Cuadros de deuda vencida: cuotas vencidas (sin saldar), mora acumulada y el
+ * total a pagar hoy (cuotas + mora). Todo viene ya calculado desde el backend.
  */
 @Composable
 private fun OverdueInstallmentsCard(
     count: Int,
-    total: String,
+    overdueTotal: String,
+    lateFeeTotal: String,
+    dueTodayTotal: String,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = ErrorContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Cuotas vencidas",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = Error,
-                )
-                Text(
-                    text = if (count == 1) "1 cuota vencida sin saldar" else "$count cuotas vencidas sin saldar",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Error,
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = total,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = Error,
-                maxLines = 1,
+            DebtBox(
+                title = "Cuotas vencidas",
+                subtitle = if (count == 1) "1 cuota sin saldar" else "$count cuotas sin saldar",
+                amount = overdueTotal,
+                background = ErrorContainer,
+                accent = Error,
+            )
+            DebtBox(
+                title = "Mora",
+                subtitle = "Mora pendiente acumulada",
+                amount = lateFeeTotal,
+                background = Color(0xFFFFF1E6),
+                accent = Orange,
+            )
+            DebtBox(
+                title = "Total a pagar hoy",
+                subtitle = "Cuotas vencidas + mora",
+                amount = dueTodayTotal,
+                background = Error,
+                accent = Color.White,
+                emphasized = true,
             )
         }
+    }
+}
+
+@Composable
+private fun DebtBox(
+    title: String,
+    subtitle: String,
+    amount: String,
+    background: Color,
+    accent: Color,
+    emphasized: Boolean = false,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(background)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = if (emphasized) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = accent,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = accent.copy(alpha = if (emphasized) 0.85f else 0.75f),
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = amount,
+            style = if (emphasized) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = accent,
+            maxLines = 1,
+        )
     }
 }
 
