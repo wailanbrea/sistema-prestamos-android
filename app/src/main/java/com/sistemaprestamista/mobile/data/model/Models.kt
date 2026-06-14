@@ -245,11 +245,20 @@ data class InstallmentSummary(
     val lateFee: Double,
     val installmentAmount: Double,
     val totalPaid: Double,
+    val paidPrincipal: Double = 0.0,
+    val paidInterest: Double = 0.0,
+    val paidLateFee: Double = 0.0,
     val daysLate: Int,
     val status: String,
 ) {
     val pendingAmount: Double
         get() = (principalAmount + interestAmount + lateFee - totalPaid).coerceAtLeast(0.0)
+    val pendingPrincipal: Double
+        get() = (principalAmount - paidPrincipal).coerceAtLeast(0.0)
+    val pendingInterest: Double
+        get() = (interestAmount - paidInterest).coerceAtLeast(0.0)
+    val pendingLateFee: Double
+        get() = (lateFee - paidLateFee).coerceAtLeast(0.0)
 }
 
 data class InstallmentPaymentLine(
@@ -569,4 +578,15 @@ enum class PaymentMethod(
     Card("card", "Tarjeta"),
     Check("check", "Cheque"),
     Other("other", "Otro"),
+}
+
+enum class AllocationMode(
+    val apiValue: String,
+    val label: String,
+    val shortLabel: String,
+) {
+    Auto("auto", "Cap. + Int. + Mora", "Todo"),
+    PrincipalAndInterest("principal_and_interest", "Capital + Interés", "Cap. + Int."),
+    PrincipalOnly("principal_only", "Solo capital", "Capital"),
+    InterestOnly("interest_only", "Solo interés", "Interés"),
 }

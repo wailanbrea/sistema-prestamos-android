@@ -18,10 +18,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -43,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -404,6 +409,7 @@ internal fun QuoteDetailScreen(
     onDelete: (Long) -> Unit,
 ) {
     val currency = rememberCurrency()
+    val context = LocalContext.current
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     if (quote == null) {
@@ -579,6 +585,56 @@ internal fun QuoteDetailScreen(
                         }
                     }
                 }
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    val interestTypeLabel = InterestTypes.firstOrNull { it.first == quote.interestType }?.second ?: quote.interestType
+                    val frequencyLabel = formatPaymentFrequency(quote.paymentFrequency)
+                    val methodLabel = CalculationMethods.firstOrNull { it.first == quote.calculationMethod }?.second ?: quote.calculationMethod
+                    val message = buildString {
+                        appendLine("*Cotización de Préstamo*")
+                        appendLine()
+                        quote.clientName?.let { appendLine("Cliente: $it") }
+                        appendLine("Monto: ${currency.format(quote.amount)}")
+                        appendLine("Cuota $frequencyLabel: ${currency.format(quote.installmentAmount)}")
+                        appendLine("Cantidad de cuotas: ${quote.termQuantity}")
+                        appendLine("Tasa de interés: ${quote.interestRate}%")
+                        appendLine("Tipo: $interestTypeLabel · $methodLabel")
+                        appendLine("Interés total: ${currency.format(quote.totalInterest)}")
+                        append("Total a pagar: ${currency.format(quote.totalAmount)}")
+                    }
+                    val whatsappIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        setPackage("com.whatsapp")
+                        putExtra(Intent.EXTRA_TEXT, message)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    runCatching { context.startActivity(whatsappIntent) }.onFailure {
+                        val fallbackUri = Uri.parse("https://wa.me/?text=${Uri.encode(message)}")
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, fallbackUri).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                },
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF25D366),
+                    contentColor = Color.White,
+                ),
+            ) {
+                Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(8.dp))
+                Text("Enviar por WhatsApp", fontWeight = FontWeight.Bold)
             }
         }
 

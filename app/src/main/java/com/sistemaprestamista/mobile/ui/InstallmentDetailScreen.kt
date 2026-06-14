@@ -52,11 +52,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.sistemaprestamista.mobile.data.model.AllocationMode
 import com.sistemaprestamista.mobile.data.model.InstallmentDetail
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.PaymentMethod
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
 import java.util.Locale
+import kotlin.math.min
 
 private val ScreenBackground = Color(0xFFF4F7FB)
 private val CardBackground = Color(0xFFFFFFFF)
@@ -83,7 +85,7 @@ internal fun InstallmentDetailScreen(
     detail: InstallmentDetail?,
     fallbackInstallment: InstallmentSummary?,
     isLoading: Boolean,
-    onRegisterPayment: (Long, String, String) -> Unit,
+    onRegisterPayment: (Long, String, String, String) -> Unit,
 ) {
     val installment = detail?.summary ?: fallbackInstallment
 
@@ -105,13 +107,17 @@ internal fun InstallmentDetailScreen(
         mutableStateOf(PaymentMethod.Cash)
     }
 
+    var allocationMode by remember(installment.id) {
+        mutableStateOf(if (installment.pendingLateFee > 0) AllocationMode.Auto else AllocationMode.PrincipalAndInterest)
+    }
+
     var showConfirmation by remember(installment.id) {
         mutableStateOf(false)
     }
 
     val currency = rememberCurrency()
     val parsedAmount = amount.toDoubleOrNull()
-    val isLate = installment.daysLate > 0
+    val isLate = installment.daysLate > 0 && installment.status.trim().lowercase() !in setOf("paid", "cancelled")
 
     val amountError = when {
         amount.isBlank() -> "Indica el monto."
@@ -149,9 +155,14 @@ internal fun InstallmentDetailScreen(
             amount = amount,
             amountError = amountError,
             paymentMethod = paymentMethod,
+            allocationMode = allocationMode,
+            pendingPrincipal = installment.pendingPrincipal,
+            pendingInterest = installment.pendingInterest,
+            pendingLateFee = installment.pendingLateFee,
             isLoading = isLoading,
             onAmountChange = { amount = it },
             onPaymentMethodChange = { paymentMethod = it },
+            onAllocationModeChange = { allocationMode = it },
             onRegisterClick = { showConfirmation = true },
         )
 
@@ -264,6 +275,7 @@ internal fun InstallmentDetailScreen(
                     installment.loanId,
                     amount,
                     paymentMethod.apiValue,
+                    allocationMode.apiValue,
                 )
             },
         )
@@ -482,11 +494,18 @@ private fun PaymentRegisterCard(
     amount: String,
     amountError: String?,
     paymentMethod: PaymentMethod,
+    allocationMode: AllocationMode,
+    pendingPrincipal: Double,
+    pendingInterest: Double,
+    pendingLateFee: Double,
     isLoading: Boolean,
     onAmountChange: (String) -> Unit,
     onPaymentMethodChange: (PaymentMethod) -> Unit,
+    onAllocationModeChange: (AllocationMode) -> Unit,
     onRegisterClick: () -> Unit,
 ) {
+    val parsedAmount = amount.toDoubleOrNull()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -539,6 +558,22 @@ private fun PaymentRegisterCard(
                 selected = paymentMethod,
                 onSelected = onPaymentMethodChange,
             )
+
+            AllocationModeSelector(
+                selected = allocationMode,
+                hasLateFee = pendingLateFee > 0,
+                onSelected = onAllocationModeChange,
+            )
+
+            parsedAmount?.let { amt ->
+                PaymentBreakdownCard(
+                    amount = amt,
+                    mode = allocationMode,
+                    pendingPrincipal = pendingPrincipal,
+                    pendingInterest = pendingInterest,
+                    pendingLateFee = pendingLateFee,
+                )
+            }
 
             Button(
                 onClick = onRegisterClick,

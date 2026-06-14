@@ -177,7 +177,7 @@ class MainViewModel(
      */
     private val paymentUuidByAttempt = mutableMapOf<String, String>()
 
-    fun registerPayment(loanId: Long, amountText: String, paymentMethod: String) {
+    fun registerPayment(loanId: Long, amountText: String, paymentMethod: String, allocationMode: String = "auto") {
         val amount = amountText.toDoubleOrNull()
         if (amount == null || amount <= 0) {
             _uiState.update { it.copy(errorMessage = "El monto debe ser mayor que cero.") }
@@ -189,7 +189,7 @@ class MainViewModel(
         }
 
         val paymentDate = LocalDate.now().toString()
-        val attemptKey = "$loanId|$amount|$paymentDate"
+        val attemptKey = "$loanId|$amount|$paymentDate|$allocationMode"
         val mobileUuid = paymentUuidByAttempt.getOrPut(attemptKey) { UUID.randomUUID().toString() }
 
         viewModelScope.launch {
@@ -201,6 +201,7 @@ class MainViewModel(
                         amount = amount,
                         paymentDate = paymentDate,
                         paymentMethod = paymentMethod,
+                        allocationMode = allocationMode,
                         mobileUuid = mobileUuid,
                     )
                 }
@@ -242,7 +243,7 @@ class MainViewModel(
      * cobrador, pero contra admin/payments y sin cola offline. Al confirmar, muestra
      * el recibo y refresca el detalle del préstamo en un paso aparte.
      */
-    fun registerAdminPayment(loanId: Long, amountText: String, paymentMethod: String) {
+    fun registerAdminPayment(loanId: Long, amountText: String, paymentMethod: String, allocationMode: String = "auto") {
         val amount = amountText.toDoubleOrNull()
         if (amount == null || amount <= 0) {
             _uiState.update { it.copy(errorMessage = "El monto debe ser mayor que cero.") }
@@ -254,7 +255,7 @@ class MainViewModel(
         }
 
         val paymentDate = LocalDate.now().toString()
-        val attemptKey = "admin|$loanId|$amount|$paymentDate"
+        val attemptKey = "admin|$loanId|$amount|$paymentDate|$allocationMode"
         val mobileUuid = paymentUuidByAttempt.getOrPut(attemptKey) { UUID.randomUUID().toString() }
 
         viewModelScope.launch {
@@ -266,6 +267,7 @@ class MainViewModel(
                         amount = amount,
                         paymentDate = paymentDate,
                         paymentMethod = paymentMethod,
+                        allocationMode = allocationMode,
                         mobileUuid = mobileUuid,
                     )
                 }

@@ -184,6 +184,7 @@ class PrestamistaRepository(
         amount: Double,
         paymentDate: String,
         paymentMethod: String,
+        allocationMode: String,
         mobileUuid: String,
     ): PaymentRegistrationResult {
         val pendingPayment = pendingPaymentStore.create(
@@ -191,6 +192,7 @@ class PrestamistaRepository(
             amount = amount,
             paymentDate = paymentDate,
             paymentMethod = paymentMethod,
+            allocationMode = allocationMode,
             mobileUuid = mobileUuid,
         )
 
@@ -227,6 +229,7 @@ class PrestamistaRepository(
         amount: Double,
         paymentDate: String,
         paymentMethod: String,
+        allocationMode: String,
         mobileUuid: String,
     ): PaymentReceipt {
         return apiClient.adminRegisterPayment(
@@ -236,6 +239,7 @@ class PrestamistaRepository(
             paymentDate = paymentDate,
             paymentMethod = paymentMethod,
             mobileUuid = mobileUuid,
+            allocationMode = allocationMode,
         )
     }
 
@@ -371,6 +375,7 @@ class PrestamistaRepository(
             paymentDate = pendingPayment.paymentDate,
             paymentMethod = pendingPayment.paymentMethod,
             mobileUuid = pendingPayment.mobileUuid,
+            allocationMode = pendingPayment.allocationMode,
         )
     }
 

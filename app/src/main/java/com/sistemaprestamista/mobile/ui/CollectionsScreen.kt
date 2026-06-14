@@ -48,10 +48,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import com.sistemaprestamista.mobile.data.model.AllocationMode
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.PaymentMethod
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
 import java.util.Locale
+import kotlin.math.min
 
 private val ScreenBackground = Color(0xFFF4F7FB)
 private val CardBackground = Color(0xFFFFFFFF)
@@ -75,7 +80,7 @@ private val SuccessSoft = Color(0xFF6FFBBE)
 @Composable
 internal fun CollectionsScreen(
     state: AppUiState,
-    onRegisterPayment: (Long, String, String) -> Unit,
+    onRegisterPayment: (Long, String, String, String) -> Unit,
     onOpenInstallment: (Long) -> Unit,
 ) {
     val installments = state.collectorInstallments
@@ -166,7 +171,7 @@ private fun CollectionsHeader(
 private fun CollectionInstallmentCard(
     installment: InstallmentSummary,
     isLoading: Boolean,
-    onRegisterPayment: (Long, String, String) -> Unit,
+    onRegisterPayment: (Long, String, String, String) -> Unit,
     onOpenInstallment: (Long) -> Unit,
 ) {
     var amount by remember(installment.id) {
@@ -177,12 +182,16 @@ private fun CollectionInstallmentCard(
         mutableStateOf(PaymentMethod.Cash)
     }
 
+    var allocationMode by remember(installment.id) {
+        mutableStateOf(if (installment.pendingLateFee > 0) AllocationMode.Auto else AllocationMode.PrincipalAndInterest)
+    }
+
     var showConfirmation by remember(installment.id) {
         mutableStateOf(false)
     }
 
     val currency = rememberCurrency()
-    val isLate = installment.daysLate > 0
+    val isLate = installment.daysLate > 0 && installment.status.trim().lowercase() !in setOf("paid", "cancelled")
     val parsedAmount = amount.toDoubleOrNull()
 
     val amountError = when {
@@ -297,6 +306,22 @@ private fun CollectionInstallmentCard(
                     onSelected = { paymentMethod = it },
                 )
 
+                AllocationModeSelector(
+                    selected = allocationMode,
+                    hasLateFee = installment.pendingLateFee > 0,
+                    onSelected = { allocationMode = it },
+                )
+
+                parsedAmount?.let { amt ->
+                    PaymentBreakdownCard(
+                        amount = amt,
+                        mode = allocationMode,
+                        pendingPrincipal = installment.pendingPrincipal,
+                        pendingInterest = installment.pendingInterest,
+                        pendingLateFee = installment.pendingLateFee,
+                    )
+                }
+
                 Button(
                     onClick = { showConfirmation = true },
                     enabled = canSubmit,
@@ -350,6 +375,7 @@ private fun CollectionInstallmentCard(
                     installment.loanId,
                     amount,
                     paymentMethod.apiValue,
+                    allocationMode.apiValue,
                 )
             },
         )
@@ -618,6 +644,122 @@ private fun ConfirmInfoRow(
             color = TextMain,
             maxLines = 1,
         )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Selector de modo de asignación del pago
+// ---------------------------------------------------------------------------
+
+@Composable
+internal fun AllocationModeSelector(
+    selected: AllocationMode,
+    hasLateFee: Boolean,
+    onSelected: (AllocationMode) -> Unit,
+) {
+    val modes = if (hasLateFee) AllocationMode.entries else AllocationMode.entries.filter { it != AllocationMode.Auto }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = "¿Qué se cubre con este pago?",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = TextVariant,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            modes.forEach { mode ->
+                FilterChip(
+                    selected = selected == mode,
+                    onClick = { onSelected(mode) },
+                    label = { Text(mode.shortLabel, style = MaterialTheme.typography.labelMedium) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = PrimaryContainer,
+                        selectedLabelColor = Color.White,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Desglose estimado del pago
+// ---------------------------------------------------------------------------
+
+private data class PaymentBreakdown(val principal: Double, val interest: Double, val late: Double)
+
+private fun computeBreakdown(
+    mode: AllocationMode,
+    amount: Double,
+    pendingPrincipal: Double,
+    pendingInterest: Double,
+    pendingLateFee: Double,
+): PaymentBreakdown {
+    var rem = amount
+    var late = 0.0
+    var interest = 0.0
+    var principal = 0.0
+    when (mode) {
+        AllocationMode.Auto -> {
+            late = min(rem, pendingLateFee); rem -= late
+            interest = min(rem, pendingInterest); rem -= interest
+            principal = min(rem, pendingPrincipal)
+        }
+        AllocationMode.PrincipalAndInterest -> {
+            interest = min(rem, pendingInterest); rem -= interest
+            principal = min(rem, pendingPrincipal)
+        }
+        AllocationMode.PrincipalOnly -> {
+            principal = min(rem, pendingPrincipal)
+        }
+        AllocationMode.InterestOnly -> {
+            interest = min(rem, pendingInterest)
+        }
+    }
+    return PaymentBreakdown(principal, interest, late)
+}
+
+@Composable
+internal fun PaymentBreakdownCard(
+    amount: Double,
+    mode: AllocationMode,
+    pendingPrincipal: Double,
+    pendingInterest: Double,
+    pendingLateFee: Double,
+) {
+    val currency = rememberCurrency()
+    val breakdown = computeBreakdown(mode, amount, pendingPrincipal, pendingInterest, pendingLateFee)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = PrimaryFixed.copy(alpha = 0.45f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = "Desglose estimado",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = Primary,
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                BreakdownItem("Capital", currency.format(breakdown.principal), Modifier.weight(1f))
+                BreakdownItem("Interés", currency.format(breakdown.interest), Modifier.weight(1f))
+                if (breakdown.late > 0 || mode == AllocationMode.Auto) {
+                    BreakdownItem("Mora", currency.format(breakdown.late), Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BreakdownItem(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = TextVariant)
+        Text(text = value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = TextMain)
     }
 }
 

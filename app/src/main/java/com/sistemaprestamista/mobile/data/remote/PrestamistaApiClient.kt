@@ -291,6 +291,7 @@ class PrestamistaApiClient(
         paymentDate: String,
         paymentMethod: String,
         mobileUuid: String,
+        allocationMode: String = "auto",
     ): PaymentReceipt {
         val payload = JSONObject()
             .put("loan_id", loanId)
@@ -298,6 +299,7 @@ class PrestamistaApiClient(
             .put("payment_date", paymentDate)
             .put("payment_method", paymentMethod)
             .put("mobile_uuid", mobileUuid)
+            .put("allocation_mode", allocationMode)
 
         val json = request(
             path = "collector/payments",
@@ -339,6 +341,7 @@ class PrestamistaApiClient(
         paymentDate: String,
         paymentMethod: String,
         mobileUuid: String,
+        allocationMode: String = "auto",
     ): PaymentReceipt {
         val payload = JSONObject()
             .put("loan_id", loanId)
@@ -346,6 +349,7 @@ class PrestamistaApiClient(
             .put("payment_date", paymentDate)
             .put("payment_method", paymentMethod)
             .put("mobile_uuid", mobileUuid)
+            .put("allocation_mode", allocationMode)
 
         val json = request(
             path = "admin/payments",
@@ -1104,6 +1108,9 @@ class PrestamistaApiClient(
             lateFee = json.optDouble("late_fee", 0.0),
             installmentAmount = json.optDouble("installment_amount", 0.0),
             totalPaid = json.optDouble("total_paid", 0.0),
+            paidPrincipal = json.optDouble("paid_principal", 0.0),
+            paidInterest = json.optDouble("paid_interest", 0.0),
+            paidLateFee = json.optDouble("paid_late_fee", 0.0),
             daysLate = json.optInt("days_late", 0),
             status = json.optString("status"),
         )

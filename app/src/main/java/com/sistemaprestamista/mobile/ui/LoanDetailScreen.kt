@@ -60,6 +60,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.sistemaprestamista.mobile.data.model.AllocationMode
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.LoanDocument
@@ -93,7 +94,7 @@ internal fun LoanDetailScreen(
     isLoading: Boolean,
     fallbackLoan: LoanSummary?,
     onOpenInstallment: (Long) -> Unit,
-    onRegisterPayment: ((Long, String, String) -> Unit)? = null,
+    onRegisterPayment: ((Long, String, String, String) -> Unit)? = null,
     isPaymentLoading: Boolean = false,
     onGenerateDocument: ((Long, String) -> Unit)? = null,
     isDocumentGenerating: Boolean = false,
@@ -143,9 +144,9 @@ internal fun LoanDetailScreen(
             loan = loan,
             isLoading = isPaymentLoading,
             onDismiss = { showPaymentDialog = false },
-            onConfirm = { amountText, methodApiValue ->
+            onConfirm = { amountText, methodApiValue, allocationModeApiValue ->
                 showPaymentDialog = false
-                onRegisterPayment(loan.id, amountText, methodApiValue)
+                onRegisterPayment(loan.id, amountText, methodApiValue, allocationModeApiValue)
             },
         )
     }
@@ -410,7 +411,7 @@ private fun RegisterPaymentDialog(
     loan: LoanSummary,
     isLoading: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (String, String) -> Unit,
+    onConfirm: (String, String, String) -> Unit,
 ) {
     val currency = rememberCurrency()
     var amount by remember {
@@ -423,6 +424,7 @@ private fun RegisterPaymentDialog(
         )
     }
     var method by remember { mutableStateOf(PaymentMethod.Cash) }
+    var allocationMode by remember { mutableStateOf(AllocationMode.PrincipalAndInterest) }
 
     val parsedAmount = amount.toDoubleOrNull()
     val amountError = when {
@@ -477,11 +479,17 @@ private fun RegisterPaymentDialog(
                     selected = method,
                     onSelected = { method = it },
                 )
+
+                AllocationModeSelector(
+                    selected = allocationMode,
+                    hasLateFee = false,
+                    onSelected = { allocationMode = it },
+                )
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(amount, method.apiValue) },
+                onClick = { onConfirm(amount, method.apiValue, allocationMode.apiValue) },
                 enabled = !isLoading && parsedAmount != null && parsedAmount > 0,
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
             ) {
