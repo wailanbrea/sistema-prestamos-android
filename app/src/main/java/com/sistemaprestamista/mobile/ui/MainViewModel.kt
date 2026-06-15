@@ -377,6 +377,22 @@ class MainViewModel(
         _uiState.update { it.copy(selectedLoanContract = null) }
     }
 
+    /** Carga el catálogo de reportes (con enlaces firmados a sus PDF). */
+    fun loadReportCatalog() {
+        if (uiState.value.isReportCatalogLoading) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isReportCatalogLoading = true) }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminReportCatalog() }
+            }.onSuccess { catalog ->
+                _uiState.update { it.copy(isReportCatalogLoading = false, reportCatalog = catalog) }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isReportCatalogLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
     /** Alta de cliente desde back-office: mismo contrato que la web (clients.create). */
     fun createAdminClient(input: com.sistemaprestamista.mobile.data.model.NewClientInput) {
         if (uiState.value.isClientSaving) return

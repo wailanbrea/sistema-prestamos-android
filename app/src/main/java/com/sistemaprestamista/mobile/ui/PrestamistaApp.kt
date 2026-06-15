@@ -1,5 +1,7 @@
 package com.sistemaprestamista.mobile.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -139,6 +141,7 @@ fun PrestamistaApp(
         onGenerateLoanDocument = viewModel::generateLoanDocument,
         onLoadLoanContract = viewModel::loadLoanContract,
         onGenerateContract = viewModel::generateContract,
+        onLoadReportCatalog = viewModel::loadReportCatalog,
         onCreateAdminClient = viewModel::createAdminClient,
         onLoadAdminCollectors = viewModel::loadAdminCollectors,
         onCreateAdminLoan = viewModel::createAdminLoan,
@@ -195,6 +198,7 @@ private fun AuthenticatedShell(
     onGenerateLoanDocument: (Long, String) -> Unit,
     onLoadLoanContract: (Long) -> Unit,
     onGenerateContract: (Long) -> Unit,
+    onLoadReportCatalog: () -> Unit,
     onCreateAdminClient: (com.sistemaprestamista.mobile.data.model.NewClientInput) -> Unit,
     onLoadAdminCollectors: () -> Unit,
     onCreateAdminLoan: (com.sistemaprestamista.mobile.data.model.NewLoanInput) -> Unit,
@@ -541,9 +545,11 @@ private fun AuthenticatedShell(
                 }
 
                 composable(AppDestination.Reports.route) {
+                    LaunchedEffect(Unit) { onLoadReportCatalog() }
                     AdminReportsScreen(
                         summary = state.reportSummary,
                         collectors = state.collectorPerformance,
+                        catalog = state.reportCatalog,
                         onPrint = {
                             state.reportSummary?.let { reportSummary ->
                                 com.sistemaprestamista.mobile.printing.ReportPrinter(context).printFinancialSummary(
@@ -552,6 +558,11 @@ private fun AuthenticatedShell(
                                     currencyCode = state.user?.company?.defaultCurrency ?: "RD\$",
                                     companyName = state.user?.company?.name ?: "Sistema Prestamista",
                                 )
+                            }
+                        },
+                        onOpenReport = { url ->
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                             }
                         },
                     )

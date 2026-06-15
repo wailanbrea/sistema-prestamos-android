@@ -101,6 +101,9 @@ class PrestamistaRepository(
     fun adminReportCollectors(dateFrom: String? = null, dateTo: String? = null): List<com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow> =
         apiClient.adminReportCollectors(requiredToken(), dateFrom, dateTo)
 
+    fun adminReportCatalog(): List<com.sistemaprestamista.mobile.data.model.ReportCatalogItem> =
+        apiClient.adminReportCatalog(requiredToken())
+
     // --- Caja / Contabilidad ---
 
     fun cashboxExpenses(): List<com.sistemaprestamista.mobile.data.model.ExpenseItem> = apiClient.cashboxExpenses(requiredToken())

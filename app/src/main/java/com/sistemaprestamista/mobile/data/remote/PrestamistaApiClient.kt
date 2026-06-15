@@ -791,6 +791,18 @@ class PrestamistaApiClient(
         }
     }
 
+    fun adminReportCatalog(token: String): List<com.sistemaprestamista.mobile.data.model.ReportCatalogItem> {
+        val json = request(path = "admin/reports/catalog", method = "GET", token = token)
+        return json.optJSONArray("data").mapObjects { item ->
+            com.sistemaprestamista.mobile.data.model.ReportCatalogItem(
+                type = item.optString("type"),
+                title = item.optString("title"),
+                description = item.optString("description"),
+                pdfUrl = item.optString("pdf_url"),
+            )
+        }
+    }
+
     // --- Caja / Contabilidad ---
 
     fun cashboxExpenses(token: String): List<com.sistemaprestamista.mobile.data.model.ExpenseItem> {

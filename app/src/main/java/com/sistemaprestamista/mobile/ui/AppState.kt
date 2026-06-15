@@ -69,6 +69,8 @@ data class AppUiState(
     val pendingApprovals: List<LoanSummary> = emptyList(),
     val reportSummary: AdminReportSummary? = null,
     val collectorPerformance: List<CollectorPerformanceRow> = emptyList(),
+    val reportCatalog: List<com.sistemaprestamista.mobile.data.model.ReportCatalogItem> = emptyList(),
+    val isReportCatalogLoading: Boolean = false,
     val isApprovalActionLoading: Boolean = false,
     val isDocumentGenerating: Boolean = false,
     // Alta de clientes, cotizaciones y préstamos (back-office)

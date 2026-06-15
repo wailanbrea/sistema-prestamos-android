@@ -404,6 +404,14 @@ data class CashSummary(
     val balance: Double,
 )
 
+/** Un reporte del catálogo (admin/reports/catalog), con enlace firmado a su PDF. */
+data class ReportCatalogItem(
+    val type: String,
+    val title: String,
+    val description: String,
+    val pdfUrl: String,
+)
+
 /** Una fila del rendimiento por cobrador (endpoint admin/reports/collectors). */
 data class CollectorPerformanceRow(
     val collector: String,

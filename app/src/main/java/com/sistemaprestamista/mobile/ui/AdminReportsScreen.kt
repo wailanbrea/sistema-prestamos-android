@@ -1,6 +1,7 @@
 package com.sistemaprestamista.mobile.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,7 +46,9 @@ private val Red = Color(0xFFBA1A1A)
 internal fun AdminReportsScreen(
     summary: AdminReportSummary?,
     collectors: List<CollectorPerformanceRow>,
+    catalog: List<com.sistemaprestamista.mobile.data.model.ReportCatalogItem> = emptyList(),
     onPrint: () -> Unit = {},
+    onOpenReport: (String) -> Unit = {},
 ) {
     val currency = rememberCurrency()
 
@@ -140,6 +144,71 @@ internal fun AdminReportsScreen(
                     disbursed = currency.format(row.disbursed),
                 )
             }
+        }
+
+        if (catalog.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Reportes detallados",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextMain,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            item {
+                Text(
+                    text = "Ábrelos para verlos o imprimirlos en PDF.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                )
+            }
+            items(catalog, key = { it.type }) { report ->
+                ReportCatalogCard(report = report, onOpen = { onOpenReport(report.pdfUrl) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportCatalogCard(
+    report: com.sistemaprestamista.mobile.data.model.ReportCatalogItem,
+    onOpen: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = report.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = TextMain,
+                )
+                Text(
+                    text = report.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                )
+            }
+            Icon(
+                imageVector = Icons.Outlined.PictureAsPdf,
+                contentDescription = "Abrir PDF",
+                tint = Primary,
+                modifier = Modifier.height(26.dp),
+            )
         }
     }
 }
