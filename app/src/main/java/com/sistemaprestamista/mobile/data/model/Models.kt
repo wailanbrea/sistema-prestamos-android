@@ -236,6 +236,7 @@ data class LoanDocument(
     val documentId: Long?,
     val title: String?,
     val downloadUrl: String?,
+    val whatsappUrl: String?,
     val createdAt: String?,
 )
 
@@ -620,4 +621,11 @@ enum class AllocationMode(
     PrincipalAndInterest("principal_and_interest", "Capital + Interés", "Cap. + Int."),
     PrincipalOnly("principal_only", "Solo capital", "Capital"),
     InterestOnly("interest_only", "Solo interés", "Interés"),
+
+    /**
+     * Paga la cuota seleccionada y aplica el sobrante como abono directo a
+     * capital (campo `capital_prepayment_amount`). El sobrante NO se reparte en
+     * cuotas futuras.
+     */
+    CurrentPlusCapital("current_plus_capital", "Cuota + abono a capital", "Cuota+Cap."),
 }

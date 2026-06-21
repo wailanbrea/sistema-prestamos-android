@@ -294,6 +294,7 @@ class PrestamistaApiClient(
         mobileUuid: String,
         allocationMode: String = "auto",
         targetInstallmentId: Long? = null,
+        capitalPrepaymentAmount: Double? = null,
     ): PaymentReceipt {
         val payload = JSONObject()
             .put("loan_id", loanId)
@@ -303,6 +304,7 @@ class PrestamistaApiClient(
             .put("mobile_uuid", mobileUuid)
             .put("allocation_mode", allocationMode)
         targetInstallmentId?.let { payload.put("target_installment_id", it) }
+        capitalPrepaymentAmount?.let { payload.put("capital_prepayment_amount", it) }
 
         val json = request(
             path = "collector/payments",
@@ -1145,6 +1147,7 @@ class PrestamistaApiClient(
             documentId = if (json.has("document_id") && !json.isNull("document_id")) json.getLong("document_id") else null,
             title = json.nullableString("title"),
             downloadUrl = json.nullableString("download_url"),
+            whatsappUrl = json.nullableString("whatsapp_url"),
             createdAt = json.nullableString("created_at"),
         )
     }

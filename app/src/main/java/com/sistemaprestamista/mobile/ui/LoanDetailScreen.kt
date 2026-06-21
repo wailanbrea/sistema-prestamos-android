@@ -612,33 +612,54 @@ private fun LoanDocumentsCard(
                         )
                     }
 
-                    when {
-                        document.downloadUrl != null -> {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        if (document.whatsappUrl != null) {
                             TextButton(
                                 onClick = {
                                     context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, Uri.parse(document.downloadUrl)),
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(document.whatsappUrl)),
                                     )
                                 },
                             ) {
                                 Text(
-                                    text = "Abrir",
+                                    text = "Enviar",
                                     fontWeight = FontWeight.Bold,
-                                    color = PrimaryContainer,
+                                    color = Success,
                                 )
                             }
                         }
 
-                        canGenerate -> {
-                            TextButton(
-                                onClick = { onGenerate(document.documentType) },
-                                enabled = !isGenerating,
-                            ) {
-                                Text(
-                                    text = if (isGenerating) "Generando..." else "Generar",
-                                    fontWeight = FontWeight.Bold,
-                                    color = PrimaryContainer,
-                                )
+                        when {
+                            document.downloadUrl != null -> {
+                                TextButton(
+                                    onClick = {
+                                        context.startActivity(
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(document.downloadUrl)),
+                                        )
+                                    },
+                                ) {
+                                    Text(
+                                        text = "Abrir",
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryContainer,
+                                    )
+                                }
+                            }
+
+                            canGenerate -> {
+                                TextButton(
+                                    onClick = { onGenerate(document.documentType) },
+                                    enabled = !isGenerating,
+                                ) {
+                                    Text(
+                                        text = if (isGenerating) "Generando..." else "Generar",
+                                        fontWeight = FontWeight.Bold,
+                                        color = PrimaryContainer,
+                                    )
+                                }
                             }
                         }
                     }
