@@ -256,6 +256,16 @@ private fun AuthenticatedShell(
         }
     }
 
+    // Abrir WhatsApp cuando una acción (p. ej. enviar estado de cuenta) deja un
+    // enlace listo, sin importar en qué pantalla se haya disparado.
+    LaunchedEffect(state.pendingShareUrl) {
+        val shareUrl = state.pendingShareUrl ?: return@LaunchedEffect
+        runCatching {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(shareUrl)))
+        }
+        onConsumePendingShareUrl()
+    }
+
     Scaffold(
         containerColor = AppBackground,
         topBar = {
@@ -437,16 +447,6 @@ private fun AuthenticatedShell(
                 }
 
                 composable(AppDestination.LoansAdmin.route) {
-                    LaunchedEffect(state.pendingShareUrl) {
-                        val shareUrl = state.pendingShareUrl
-                        if (shareUrl != null) {
-                            runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(shareUrl)))
-                            }
-                            onConsumePendingShareUrl()
-                        }
-                    }
-
                     AdminLoansScreen(
                         loans = state.adminLoans,
                         onOpenLoan = { loanId ->
@@ -686,6 +686,10 @@ private fun AuthenticatedShell(
                             { onDeleteAdminLoan(loanId) { navController.popBackStack() } }
                         } else null,
                         isDeletingLoan = state.isLoanSaving,
+                        onSendAccountStatement = if (state.canGenerateDocuments && loanId != null) {
+                            { onSendAccountStatement(loanId) }
+                        } else null,
+                        isSendingStatement = state.isSharingDocument,
                     )
                 }
 
@@ -854,6 +858,10 @@ private fun AuthenticatedShell(
                         },
                         onGenerateDocument = if (state.canGenerateDocuments) onGenerateLoanDocument else null,
                         isDocumentGenerating = state.isDocumentGenerating,
+                        onSendAccountStatement = if (state.canGenerateDocuments && loanId != null) {
+                            { onSendAccountStatement(loanId) }
+                        } else null,
+                        isSendingStatement = state.isSharingDocument,
                     )
                 }
 

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.AttachMoney
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Description
@@ -110,6 +111,8 @@ internal fun LoanDetailScreen(
     onEditLoan: (() -> Unit)? = null,
     onDeleteLoan: (() -> Unit)? = null,
     isDeletingLoan: Boolean = false,
+    onSendAccountStatement: (() -> Unit)? = null,
+    isSendingStatement: Boolean = false,
 ) {
     val loan = detail?.summary ?: fallbackLoan
 
@@ -285,7 +288,7 @@ internal fun LoanDetailScreen(
     }
 
         // Un solo botón que despliega las acciones disponibles (ocupa menos espacio).
-        val hasActions = onEditLoan != null || onDeleteLoan != null || canPay
+        val hasActions = onEditLoan != null || onDeleteLoan != null || canPay || onSendAccountStatement != null
         if (hasActions) {
             Column(
                 modifier = Modifier
@@ -316,6 +319,36 @@ internal fun LoanDetailScreen(
                                 contentColor = Color.White,
                                 icon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
                                 text = { Text("Editar préstamo", fontWeight = FontWeight.Bold) },
+                            )
+                        }
+
+                        if (onSendAccountStatement != null) {
+                            ExtendedFloatingActionButton(
+                                onClick = {
+                                    if (!isSendingStatement) {
+                                        actionsExpanded = false
+                                        onSendAccountStatement()
+                                    }
+                                },
+                                containerColor = Color(0xFF128C7E),
+                                contentColor = Color.White,
+                                icon = {
+                                    if (isSendingStatement) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Color.White,
+                                        )
+                                    } else {
+                                        Icon(Icons.Outlined.Send, contentDescription = null)
+                                    }
+                                },
+                                text = {
+                                    Text(
+                                        if (isSendingStatement) "Preparando..." else "Enviar estado de cuenta",
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                },
                             )
                         }
 
