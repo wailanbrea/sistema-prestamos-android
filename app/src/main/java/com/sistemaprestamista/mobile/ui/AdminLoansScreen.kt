@@ -18,12 +18,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -62,6 +67,8 @@ internal fun AdminLoansScreen(
     onLoadMore: () -> Unit = {},
     onOpenQuotes: (() -> Unit)? = null,
     onCreateLoan: (() -> Unit)? = null,
+    onSendAccountStatement: ((Long) -> Unit)? = null,
+    isSharingDocument: Boolean = false,
 ) {
     var query by remember { mutableStateOf("") }
     val currency = rememberCurrency()
@@ -154,7 +161,13 @@ internal fun AdminLoansScreen(
             }
         } else {
             items(filtered, key = { it.id }) { loan ->
-                LoanRowCard(loan = loan, amount = currency.format(loan.remainingBalance), onOpenLoan = onOpenLoan)
+                LoanRowCard(
+                    loan = loan,
+                    amount = currency.format(loan.remainingBalance),
+                    onOpenLoan = onOpenLoan,
+                    onSendAccountStatement = onSendAccountStatement,
+                    isSharingDocument = isSharingDocument,
+                )
             }
         }
 
@@ -196,7 +209,11 @@ private fun LoanRowCard(
     loan: LoanSummary,
     amount: String,
     onOpenLoan: (Long) -> Unit,
+    onSendAccountStatement: ((Long) -> Unit)? = null,
+    isSharingDocument: Boolean = false,
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
     Card(
         onClick = { onOpenLoan(loan.id) },
         modifier = Modifier.fillMaxWidth(),
@@ -208,7 +225,7 @@ private fun LoanRowCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
+                .padding(start = 18.dp, top = 18.dp, bottom = 18.dp, end = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -236,6 +253,37 @@ private fun LoanRowCard(
                     fontWeight = FontWeight.Bold,
                     color = Primary,
                 )
+            }
+            if (onSendAccountStatement != null) {
+                Box {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.MoreVert,
+                            contentDescription = "Más opciones",
+                            tint = Outline,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Enviar estado de cuenta") },
+                            enabled = !isSharingDocument,
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Send,
+                                    contentDescription = null,
+                                    tint = Primary,
+                                )
+                            },
+                            onClick = {
+                                menuExpanded = false
+                                onSendAccountStatement(loan.id)
+                            },
+                        )
+                    }
+                }
             }
         }
     }

@@ -139,6 +139,8 @@ fun PrestamistaApp(
         onLoadMoreAdminLoans = viewModel::loadMoreAdminLoans,
         onRegisterAdminPayment = viewModel::registerAdminPayment,
         onGenerateLoanDocument = viewModel::generateLoanDocument,
+        onSendAccountStatement = viewModel::sendAccountStatement,
+        onConsumePendingShareUrl = viewModel::consumePendingShareUrl,
         onLoadLoanContract = viewModel::loadLoanContract,
         onGenerateContract = viewModel::generateContract,
         onLoadReportCatalog = viewModel::loadReportCatalog,
@@ -186,7 +188,7 @@ private fun AuthenticatedShell(
     onSelectMapRoute: (Long) -> Unit,
     onStartRouteTracking: (Long, com.sistemaprestamista.mobile.data.model.RoutePoint?) -> Unit,
     onFinishRouteTracking: () -> Unit,
-    onRegisterPayment: (Long, String, String, String, Long?) -> Unit,
+    onRegisterPayment: (Long, String, String, String, Long?, Double?) -> Unit,
     onLoadPendingPayments: () -> Unit,
     onRetryPendingPayment: (String) -> Unit,
     onSyncPendingPayments: () -> Unit,
@@ -196,6 +198,8 @@ private fun AuthenticatedShell(
     onLoadMoreAdminLoans: () -> Unit,
     onRegisterAdminPayment: (Long, String, String, String, Long?) -> Unit,
     onGenerateLoanDocument: (Long, String) -> Unit,
+    onSendAccountStatement: (Long) -> Unit,
+    onConsumePendingShareUrl: () -> Unit,
     onLoadLoanContract: (Long) -> Unit,
     onGenerateContract: (Long) -> Unit,
     onLoadReportCatalog: () -> Unit,
@@ -433,6 +437,16 @@ private fun AuthenticatedShell(
                 }
 
                 composable(AppDestination.LoansAdmin.route) {
+                    LaunchedEffect(state.pendingShareUrl) {
+                        val shareUrl = state.pendingShareUrl
+                        if (shareUrl != null) {
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(shareUrl)))
+                            }
+                            onConsumePendingShareUrl()
+                        }
+                    }
+
                     AdminLoansScreen(
                         loans = state.adminLoans,
                         onOpenLoan = { loanId ->
@@ -441,6 +455,8 @@ private fun AuthenticatedShell(
                         hasMore = state.adminLoansHasMore,
                         isLoadingMore = state.isLoadingMoreAdminLoans,
                         onLoadMore = onLoadMoreAdminLoans,
+                        onSendAccountStatement = if (state.canGenerateDocuments) onSendAccountStatement else null,
+                        isSharingDocument = state.isSharingDocument,
                         onOpenQuotes = if (state.canManageQuotes) {
                             { navController.navigate(AppRoutes.AdminQuotes) }
                         } else {

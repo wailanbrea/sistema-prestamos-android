@@ -177,7 +177,7 @@ class MainViewModel(
      */
     private val paymentUuidByAttempt = mutableMapOf<String, String>()
 
-    fun registerPayment(loanId: Long, amountText: String, paymentMethod: String, allocationMode: String = "auto", targetInstallmentId: Long? = null) {
+    fun registerPayment(loanId: Long, amountText: String, paymentMethod: String, allocationMode: String = "auto", targetInstallmentId: Long? = null, capitalPrepaymentAmount: Double? = null) {
         val amount = amountText.toDoubleOrNull()
         if (amount == null || amount <= 0) {
             _uiState.update { it.copy(errorMessage = "El monto debe ser mayor que cero.") }
@@ -187,9 +187,13 @@ class MainViewModel(
             _uiState.update { it.copy(errorMessage = "Selecciona un metodo de pago.") }
             return
         }
+        if (allocationMode == "current_plus_capital" && (capitalPrepaymentAmount == null || capitalPrepaymentAmount <= 0)) {
+            _uiState.update { it.copy(errorMessage = "Indica cuanto se abonara al capital.") }
+            return
+        }
 
         val paymentDate = LocalDate.now().toString()
-        val attemptKey = "$loanId|$amount|$paymentDate|$allocationMode|${targetInstallmentId ?: 0}"
+        val attemptKey = "$loanId|$amount|$paymentDate|$allocationMode|${targetInstallmentId ?: 0}|${capitalPrepaymentAmount ?: 0}"
         val mobileUuid = paymentUuidByAttempt.getOrPut(attemptKey) { UUID.randomUUID().toString() }
 
         viewModelScope.launch {
@@ -203,6 +207,7 @@ class MainViewModel(
                         paymentMethod = paymentMethod,
                         allocationMode = allocationMode,
                         targetInstallmentId = targetInstallmentId,
+                        capitalPrepaymentAmount = capitalPrepaymentAmount,
                         mobileUuid = mobileUuid,
                     )
                 }
@@ -868,6 +873,44 @@ class MainViewModel(
 
     fun clearSuccess() {
         _uiState.update { it.copy(successMessage = null) }
+    }
+
+    /**
+     * Genera (o reusa) el estado de cuenta del préstamo y deja su enlace de
+     * WhatsApp en `pendingShareUrl` para que la UI abra el chat. Permite
+     * compartir el documento sin tener que entrar al detalle del préstamo.
+     */
+    fun sendAccountStatement(loanId: Long) {
+        if (uiState.value.isSharingDocument) return
+
+        val viaAdmin = uiState.value.canManagePortfolio
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSharingDocument = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.generateLoanDocument(loanId, "account_statement", viaAdmin)
+                }
+            }.onSuccess { document ->
+                val url = document.whatsappUrl
+                if (url.isNullOrBlank()) {
+                    _uiState.update {
+                        it.copy(
+                            isSharingDocument = false,
+                            errorMessage = "No se pudo preparar el enlace de WhatsApp del estado de cuenta.",
+                        )
+                    }
+                } else {
+                    _uiState.update { it.copy(isSharingDocument = false, pendingShareUrl = url) }
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isSharingDocument = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun consumePendingShareUrl() {
+        _uiState.update { it.copy(pendingShareUrl = null) }
     }
 
     fun loadClientDetail(clientId: Long) {

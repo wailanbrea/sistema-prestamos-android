@@ -73,6 +73,9 @@ data class AppUiState(
     val isReportCatalogLoading: Boolean = false,
     val isApprovalActionLoading: Boolean = false,
     val isDocumentGenerating: Boolean = false,
+    // Enviar estado de cuenta por WhatsApp desde la lista de prestamos.
+    val isSharingDocument: Boolean = false,
+    val pendingShareUrl: String? = null,
     // Alta de clientes, cotizaciones y préstamos (back-office)
     val isClientSaving: Boolean = false,
     val lastCreatedClientId: Long? = null,
