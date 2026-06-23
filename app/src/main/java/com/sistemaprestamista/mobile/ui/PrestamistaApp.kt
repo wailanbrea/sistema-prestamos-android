@@ -348,6 +348,7 @@ private fun AuthenticatedShell(
                 composable(AppDestination.Clients.route) {
                     ClientsScreen(
                         clients = state.collectorClients,
+                        isLoading = state.isWorkloadLoading,
                         onOpenClient = { clientId ->
                             navController.navigate(AppRoutes.clientDetail(clientId))
                         },
@@ -415,6 +416,7 @@ private fun AuthenticatedShell(
                 composable(AppDestination.ClientsAdmin.route) {
                     ClientsScreen(
                         clients = state.adminClients,
+                        isLoading = state.isWorkloadLoading,
                         onOpenClient = { clientId ->
                             navController.navigate(AppRoutes.adminClientDetail(clientId))
                         },

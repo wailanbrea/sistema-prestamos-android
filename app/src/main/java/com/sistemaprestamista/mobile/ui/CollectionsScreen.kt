@@ -80,7 +80,7 @@ private val SuccessSoft = Color(0xFF6FFBBE)
 @Composable
 internal fun CollectionsScreen(
     state: AppUiState,
-    onRegisterPayment: (Long, String, String, String, Long?) -> Unit,
+    onRegisterPayment: (Long, String, String, String, Long?, Double?) -> Unit,
     onOpenInstallment: (Long) -> Unit,
 ) {
     val installments = state.collectorInstallments
@@ -109,9 +109,13 @@ internal fun CollectionsScreen(
             }
         } else {
             items(installments, key = { it.id }) { installment ->
+                val loanRemainingBalance = state.collectorLoans
+                    .firstOrNull { it.id == installment.loanId }
+                    ?.remainingBalance
                 CollectionInstallmentCard(
                     installment = installment,
                     isLoading = state.isLoading,
+                    loanRemainingBalance = loanRemainingBalance,
                     onRegisterPayment = onRegisterPayment,
                     onOpenInstallment = onOpenInstallment,
                 )
@@ -171,11 +175,16 @@ private fun CollectionsHeader(
 private fun CollectionInstallmentCard(
     installment: InstallmentSummary,
     isLoading: Boolean,
-    onRegisterPayment: (Long, String, String, String, Long?) -> Unit,
+    loanRemainingBalance: Double?,
+    onRegisterPayment: (Long, String, String, String, Long?, Double?) -> Unit,
     onOpenInstallment: (Long) -> Unit,
 ) {
     var amount by remember(installment.id) {
         mutableStateOf("%.2f".format(Locale.US, installment.pendingAmount))
+    }
+
+    var capitalText by remember(installment.id) {
+        mutableStateOf("")
     }
 
     var paymentMethod by remember(installment.id) {
@@ -192,9 +201,31 @@ private fun CollectionInstallmentCard(
 
     val currency = rememberCurrency()
     val isLate = installment.daysLate > 0 && installment.status.trim().lowercase() !in setOf("paid", "cancelled")
-    val parsedAmount = amount.toDoubleOrNull()
+    val isCapitalMode = allocationMode == AllocationMode.CurrentPlusCapital
+
+    // En "Cuota + capital" la base es la cuota completa; el cobrador solo indica el abono.
+    val cuotaBase = installment.pendingAmount
+    val parsedCapital = capitalText.toDoubleOrNull()
+    // Tope local del abono: lo que queda del préstamo después de cubrir esta cuota.
+    // El backend valida el capital exacto re-amortizable; esto evita 422 obvios.
+    val capitalCap = loanRemainingBalance?.let { (it - cuotaBase).coerceAtLeast(0.0) }
+
+    val parsedAmount = if (isCapitalMode) {
+        parsedCapital?.let { cuotaBase + it }
+    } else {
+        amount.toDoubleOrNull()
+    }
+
+    val capitalError = when {
+        !isCapitalMode -> null
+        capitalText.isBlank() || parsedCapital == null -> "Indica el abono a capital."
+        parsedCapital <= 0 -> "El abono debe ser mayor que cero."
+        capitalCap != null && parsedCapital > capitalCap -> "No puede exceder ${currency.format(capitalCap)}."
+        else -> null
+    }
 
     val amountError = when {
+        isCapitalMode -> capitalError
         amount.isBlank() -> "Indica el monto."
         parsedAmount == null -> "Monto inválido."
         parsedAmount <= 0 -> "Debe ser mayor que cero."
@@ -279,22 +310,21 @@ private fun CollectionInstallmentCard(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
+                    value = if (isCapitalMode) "%.2f".format(Locale.US, cuotaBase) else amount,
+                    onValueChange = { if (!isCapitalMode) amount = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Monto a cobrar") },
+                    enabled = !isCapitalMode,
+                    label = { Text(if (isCapitalMode) "Cuota a cobrar" else "Monto a cobrar") },
                     singleLine = true,
-                    isError = amountError != null,
+                    isError = amountError != null && !isCapitalMode,
                     supportingText = {
-                        amountError?.let {
-                            Text(it)
-                        }
+                        if (!isCapitalMode) amountError?.let { Text(it) }
                     },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Outlined.AttachMoney,
                             contentDescription = null,
-                            tint = if (amountError != null) Error else TextVariant,
+                            tint = if (amountError != null && !isCapitalMode) Error else TextVariant,
                         )
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -309,17 +339,46 @@ private fun CollectionInstallmentCard(
                 AllocationModeSelector(
                     selected = allocationMode,
                     hasLateFee = installment.pendingLateFee > 0,
+                    includeCapitalPrepayment = true,
                     onSelected = { allocationMode = it },
                 )
 
-                parsedAmount?.let { amt ->
-                    PaymentBreakdownCard(
-                        amount = amt,
-                        mode = allocationMode,
-                        pendingPrincipal = installment.pendingPrincipal,
-                        pendingInterest = installment.pendingInterest,
-                        pendingLateFee = installment.pendingLateFee,
+                if (isCapitalMode) {
+                    OutlinedTextField(
+                        value = capitalText,
+                        onValueChange = { capitalText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Monto a abonar a capital") },
+                        singleLine = true,
+                        isError = capitalError != null,
+                        supportingText = {
+                            Text(capitalError ?: capitalCap?.let { "Disponible: ${currency.format(it)}" } ?: "Se aplica directo a capital.")
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.AttachMoney,
+                                contentDescription = null,
+                                tint = if (capitalError != null) Error else TextVariant,
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(14.dp),
                     )
+
+                    CapitalPrepaymentSummary(
+                        cuota = cuotaBase,
+                        capital = parsedCapital?.takeIf { it > 0 } ?: 0.0,
+                    )
+                } else {
+                    parsedAmount?.let { amt ->
+                        PaymentBreakdownCard(
+                            amount = amt,
+                            mode = allocationMode,
+                            pendingPrincipal = installment.pendingPrincipal,
+                            pendingInterest = installment.pendingInterest,
+                            pendingLateFee = installment.pendingLateFee,
+                        )
+                    }
                 }
 
                 Button(
@@ -373,10 +432,11 @@ private fun CollectionInstallmentCard(
                 showConfirmation = false
                 onRegisterPayment(
                     installment.loanId,
-                    amount,
+                    "%.2f".format(Locale.US, parsedAmount),
                     paymentMethod.apiValue,
                     allocationMode.apiValue,
                     installment.id,
+                    if (isCapitalMode) parsedCapital else null,
                 )
             },
         )
@@ -657,8 +717,15 @@ internal fun AllocationModeSelector(
     selected: AllocationMode,
     hasLateFee: Boolean,
     onSelected: (AllocationMode) -> Unit,
+    includeCapitalPrepayment: Boolean = false,
 ) {
-    val modes = if (hasLateFee) AllocationMode.entries else AllocationMode.entries.filter { it != AllocationMode.Auto }
+    val modes = AllocationMode.entries.filter { mode ->
+        when (mode) {
+            AllocationMode.Auto -> hasLateFee
+            AllocationMode.CurrentPlusCapital -> includeCapitalPrepayment
+            else -> true
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
             text = "¿Qué se cubre con este pago?",
@@ -715,8 +782,64 @@ private fun computeBreakdown(
         AllocationMode.InterestOnly -> {
             interest = min(rem, pendingInterest)
         }
+        AllocationMode.CurrentPlusCapital -> {
+            // La cuota se cubre como Auto (mora→interés→capital); el sobrante
+            // declarado va a capital y se muestra aparte (CapitalPrepaymentSummary).
+            late = min(rem, pendingLateFee); rem -= late
+            interest = min(rem, pendingInterest); rem -= interest
+            principal = min(rem, pendingPrincipal)
+        }
     }
     return PaymentBreakdown(principal, interest, late)
+}
+
+@Composable
+private fun CapitalPrepaymentSummary(
+    cuota: Double,
+    capital: Double,
+) {
+    val currency = rememberCurrency()
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = PrimaryFixed.copy(alpha = 0.45f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            CapitalSummaryRow("Cuota", currency.format(cuota), bold = false)
+            CapitalSummaryRow("Abono a capital", currency.format(capital), bold = false)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(OutlineVariant.copy(alpha = 0.25f)),
+            )
+            CapitalSummaryRow("Total a cobrar", currency.format(cuota + capital), bold = true)
+        }
+    }
+}
+
+@Composable
+private fun CapitalSummaryRow(label: String, value: String, bold: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            color = if (bold) TextMain else TextVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold,
+            color = TextMain,
+        )
+    }
 }
 
 @Composable

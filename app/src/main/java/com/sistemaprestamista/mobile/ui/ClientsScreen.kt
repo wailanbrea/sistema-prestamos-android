@@ -80,6 +80,7 @@ private val ErrorText = Color(0xFF93000A)
 internal fun ClientsScreen(
     clients: List<ClientSummary>,
     onOpenClient: (Long) -> Unit,
+    isLoading: Boolean = false,
     onCreateClient: (() -> Unit)? = null,
     onGenerateRegistrationLink: ((name: String?, phone: String?) -> Unit)? = null,
     isGeneratingLink: Boolean = false,
@@ -166,13 +167,17 @@ internal fun ClientsScreen(
 
         if (filteredClients.isEmpty()) {
             item {
-                EmptyClientsState(
-                    message = if (searchQuery.isBlank()) {
-                        "No hay clientes asignados para este cobrador en la ruta actual."
-                    } else {
-                        "No se encontraron clientes con ese criterio de búsqueda."
-                    },
-                )
+                if (isLoading && searchQuery.isBlank()) {
+                    LoadingClientsState()
+                } else {
+                    EmptyClientsState(
+                        message = if (searchQuery.isBlank()) {
+                            "No hay clientes asignados para este cobrador en la ruta actual."
+                        } else {
+                            "No se encontraron clientes con ese criterio de búsqueda."
+                        },
+                    )
+                }
             }
         } else {
             items(filteredClients, key = { it.id }) { client ->
@@ -566,6 +571,31 @@ private fun ClientStatusBadge(
                 fontWeight = FontWeight.Bold,
                 color = textColor,
                 maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoadingClientsState() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceContainer),
+        border = CardDefaults.outlinedCardBorder(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(36.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            CircularProgressIndicator(color = PrimaryContainer, strokeWidth = 3.dp)
+            Text(
+                text = "Cargando clientes...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Secondary,
             )
         }
     }

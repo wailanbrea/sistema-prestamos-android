@@ -8,6 +8,7 @@ import com.sistemaprestamista.mobile.data.PaymentRegistrationResult
 import com.sistemaprestamista.mobile.data.PrestamistaRepository
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.RoutePoint
+import com.sistemaprestamista.mobile.data.pending.PendingPayment
 import com.sistemaprestamista.mobile.data.remote.ApiException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -47,12 +48,8 @@ class MainViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             runCatching {
-                withContext(Dispatchers.IO) {
-                    val user = repository.login(normalizedEmail, password)
-                    loadAuthBundle(user)
-                }
-            }.onSuccess { bundle ->
-                _uiState.value = authenticatedState(bundle)
+                val user = withContext(Dispatchers.IO) { repository.login(normalizedEmail, password) }
+                loadSessionProgressive(user)
             }.onFailure { throwable ->
                 _uiState.value = AppUiState(
                     isLoading = false,
@@ -1345,14 +1342,33 @@ class MainViewModel(
     }
 
     private fun prepareSession() {
-        _uiState.value = AppUiState(
-            isLoading = false,
-            hasSavedSession = repository.hasSavedSession(),
-            pendingPaymentCount = repository.pendingPaymentCount(),
-            pendingPayments = repository.pendingPayments(),
-        )
-        repository.enqueuePendingPaymentSync()
+        // El estado inicial (AppUiState) ya muestra el splash con isLoading=true.
+        // Leer sesion guardada (dispara Keystore) y los cobros pendientes (lee disco)
+        // se hace en IO para no bloquear el hilo principal en el arranque; al terminar
+        // pasamos a isLoading=false con el estado real (sin parpadeo de pantalla).
+        viewModelScope.launch {
+            val snapshot = withContext(Dispatchers.IO) {
+                SessionSnapshot(
+                    hasSavedSession = repository.hasSavedSession(),
+                    pendingPaymentCount = repository.pendingPaymentCount(),
+                    pendingPayments = repository.pendingPayments(),
+                )
+            }
+            _uiState.value = AppUiState(
+                isLoading = false,
+                hasSavedSession = snapshot.hasSavedSession,
+                pendingPaymentCount = snapshot.pendingPaymentCount,
+                pendingPayments = snapshot.pendingPayments,
+            )
+            withContext(Dispatchers.IO) { repository.enqueuePendingPaymentSync() }
+        }
     }
+
+    private data class SessionSnapshot(
+        val hasSavedSession: Boolean,
+        val pendingPaymentCount: Int,
+        val pendingPayments: List<PendingPayment>,
+    )
 
     private fun restoreSession() {
         viewModelScope.launch {
@@ -1370,12 +1386,8 @@ class MainViewModel(
             }
 
             runCatching {
-                withContext(Dispatchers.IO) {
-                    val user = repository.me()
-                    loadAuthBundle(user)
-                }
-            }.onSuccess { bundle ->
-                _uiState.value = authenticatedState(bundle)
+                val user = withContext(Dispatchers.IO) { repository.me() }
+                loadSessionProgressive(user)
             }.onFailure { throwable ->
                 val isAuthError = throwable is ApiException && throwable.statusCode == 401
                 if (isAuthError) {
@@ -1723,6 +1735,57 @@ class MainViewModel(
         )
     }
 
+    // Carga progresiva: pinta el dashboard apenas responde su llamada (rápido) y deja
+    // las cargas pesadas (clientes, préstamos, pagos, caja) corriendo en segundo plano,
+    // marcando isWorkloadLoading para que las listas muestren un indicador mientras tanto.
+    private suspend fun loadSessionProgressive(
+        user: com.sistemaprestamista.mobile.data.model.UserProfile,
+    ) {
+        val dashboard = withContext(Dispatchers.IO) { loadDashboardIfAllowed(user) }
+        _uiState.value = authenticatedState(
+            AuthBundle(
+                user = user,
+                dashboard = dashboard,
+                collectorWorkload = null,
+                adminWorkload = null,
+                cashboxWorkload = null,
+            ),
+        ).copy(isWorkloadLoading = true)
+
+        // Fase intermedia: la lista de clientes es lo más consultado, así que la
+        // emitimos en cuanto responde su llamada (rápida) sin esperar a préstamos,
+        // reportes ni pagos del bundle completo.
+        val permissions = user.permissions
+        val managePortfolio = permissions.contains("collectors.manage") && !user.isCollector
+        if (managePortfolio) {
+            val clients = withContext(Dispatchers.IO) {
+                runCatching { repository.adminClients() }.getOrDefault(emptyList())
+            }
+            if (clients.isNotEmpty()) _uiState.update { it.copy(adminClients = clients) }
+        } else if (user.isCollector) {
+            val clients = withContext(Dispatchers.IO) {
+                runCatching { repository.collectorClients() }.getOrDefault(emptyList())
+            }
+            if (clients.isNotEmpty()) _uiState.update { it.copy(collectorClients = clients) }
+        }
+
+        val bundle = withContext(Dispatchers.IO) {
+            coroutineScope {
+                val collectorWorkload = async { loadCollectorWorkloadIfAllowed(user) }
+                val adminWorkload = async { loadAdminWorkloadIfAllowed(user) }
+                val cashboxWorkload = async { loadCashboxWorkloadIfAllowed(user) }
+                AuthBundle(
+                    user = user,
+                    dashboard = dashboard,
+                    collectorWorkload = collectorWorkload.await(),
+                    adminWorkload = adminWorkload.await(),
+                    cashboxWorkload = cashboxWorkload.await(),
+                )
+            }
+        }
+        _uiState.value = authenticatedState(bundle)
+    }
+
     // Carga las cuatro áreas (dashboard, cobrador, admin, caja) en paralelo. Solo la del
     // rol activo hace trabajo real; las demás devuelven null al instante.
     private suspend fun loadAuthBundle(
@@ -1860,7 +1923,12 @@ class MainViewModel(
     private fun Throwable.userMessage(): String {
         return when (this) {
             is ApiException -> message ?: "Error del servidor."
-            else -> "No se pudo conectar con el servidor."
+            is java.net.SocketTimeoutException -> "El servidor tardó demasiado en responder. Intenta de nuevo."
+            is java.net.UnknownHostException -> "No se encontró el servidor. Revisa tu conexión a internet."
+            is java.io.IOException -> "Sin conexión con el servidor. Revisa tu internet e intenta de nuevo."
+            // Cualquier otro error inesperado: mostramos la causa real para no esconder el problema.
+            else -> message?.let { "No se pudo completar la operación: $it" }
+                ?: "No se pudo completar la operación."
         }
     }
 

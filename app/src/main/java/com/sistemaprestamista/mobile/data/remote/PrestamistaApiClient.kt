@@ -64,6 +64,15 @@ class PrestamistaApiClient(
     private val responseCache: ResponseCache? = null,
 ) {
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+
+    // Un token recién emitido puede tardar ~1-3s en ser visible para todas las
+    // lecturas de autenticación del backend (lag de replicación/lectura). Sin
+    // reintento, la ráfaga de peticiones que la app dispara justo tras el login
+    // recibe 401 y bota al usuario al login. Reintentamos brevemente un 401 con
+    // token presente antes de tratarlo como sesión inválida.
+    private val maxAuthRetries = 3
+    private val authRetryDelayMs = 400L
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -917,37 +926,50 @@ class PrestamistaApiClient(
         val request = when (method) {
             "GET" -> requestBuilder.get().build()
             "POST" -> requestBuilder.post((body ?: JSONObject()).toString().toRequestBody(jsonMediaType)).build()
+            "PUT" -> requestBuilder.put((body ?: JSONObject()).toString().toRequestBody(jsonMediaType)).build()
             "DELETE" -> requestBuilder.delete().build()
             else -> error("Unsupported HTTP method $method")
         }
 
-        try {
-            client.newCall(request).execute().use { response ->
-                val rawBody = response.body.string()
-                val json = if (rawBody.isBlank()) JSONObject() else JSONObject(rawBody)
+        var authAttempt = 0
+        while (true) {
+            try {
+                client.newCall(request).execute().use { response ->
+                    val rawBody = response.body.string()
+                    val json = if (rawBody.isBlank()) JSONObject() else JSONObject(rawBody)
 
-                if (!response.isSuccessful) {
-                    throw ApiException(
-                        message = json.optString("message", "Error de comunicación con el servidor."),
-                        statusCode = response.code,
-                    )
+                    if (!response.isSuccessful) {
+                        // 401 con token presente: puede ser la ventana de propagación del
+                        // token tras el login. Reintentamos con backoff antes de fallar,
+                        // para no botar al usuario al login por un 401 transitorio.
+                        if (response.code == 401 && token != null && authAttempt < maxAuthRetries) {
+                            authAttempt++
+                            Thread.sleep(authRetryDelayMs * authAttempt)
+                            return@use
+                        }
+
+                        throw ApiException(
+                            message = json.optString("message", "Error de comunicación con el servidor."),
+                            statusCode = response.code,
+                        )
+                    }
+
+                    if (cacheKey != null) {
+                        responseCache?.write(cacheKey, rawBody)
+                    }
+
+                    return json
                 }
-
+            } catch (exception: IOException) {
+                // Sin conexión / timeout: si hay respuesta en caché para este GET, se sirve.
                 if (cacheKey != null) {
-                    responseCache?.write(cacheKey, rawBody)
+                    val cached = responseCache?.read(cacheKey)
+                    if (!cached.isNullOrBlank()) {
+                        return JSONObject(cached)
+                    }
                 }
-
-                return json
+                throw exception
             }
-        } catch (exception: IOException) {
-            // Sin conexión / timeout: si hay respuesta en caché para este GET, se sirve.
-            if (cacheKey != null) {
-                val cached = responseCache?.read(cacheKey)
-                if (!cached.isNullOrBlank()) {
-                    return JSONObject(cached)
-                }
-            }
-            throw exception
         }
     }
 
@@ -1052,7 +1074,9 @@ class PrestamistaApiClient(
     }
 
     private fun parseClientDetail(json: JSONObject): ClientDetail {
-        val financial = json.getJSONObject("summary")
+        // Tolerante: si la respuesta no trae "summary" (p. ej. un endpoint que devuelve
+        // el cliente plano), usamos un resumen en ceros en vez de reventar el parseo.
+        val financial = json.optJSONObject("summary") ?: JSONObject()
 
         return ClientDetail(
             summary = parseClient(json),
@@ -1099,7 +1123,7 @@ class PrestamistaApiClient(
     }
 
     private fun parseLoanDetail(json: JSONObject): LoanDetail {
-        val financial = json.getJSONObject("summary")
+        val financial = json.optJSONObject("summary") ?: JSONObject()
 
         return LoanDetail(
             summary = parseLoan(json),

@@ -85,7 +85,7 @@ internal fun InstallmentDetailScreen(
     detail: InstallmentDetail?,
     fallbackInstallment: InstallmentSummary?,
     isLoading: Boolean,
-    onRegisterPayment: (Long, String, String, String, Long?) -> Unit,
+    onRegisterPayment: (Long, String, String, String, Long?, Double?) -> Unit,
 ) {
     val installment = detail?.summary ?: fallbackInstallment
 
@@ -277,6 +277,7 @@ internal fun InstallmentDetailScreen(
                     paymentMethod.apiValue,
                     allocationMode.apiValue,
                     installment.id,
+                    null,
                 )
             },
         )

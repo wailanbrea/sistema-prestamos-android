@@ -7,7 +7,13 @@ import androidx.security.crypto.MasterKeys
 import com.sistemaprestamista.mobile.printing.ThermalPaper
 
 class SessionStore(context: Context) {
-    private val preferences = securePreferences(context.applicationContext)
+    private val appContext = context.applicationContext
+
+    // EncryptedSharedPreferences/Keystore es costoso de inicializar (~cientos de ms
+    // en frío). Diferido con `by lazy` para que esa operacion NO ocurra al construir
+    // el contenedor en el hilo principal (causaba jank de arranque); el primer acceso
+    // real ocurre en una corrutina de IO (prepareSession / requiredToken).
+    private val preferences by lazy { securePreferences(appContext) }
 
     fun token(): String? = preferences.getString(KEY_TOKEN, null)
 

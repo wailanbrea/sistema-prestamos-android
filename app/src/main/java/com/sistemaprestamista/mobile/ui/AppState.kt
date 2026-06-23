@@ -29,6 +29,10 @@ import com.sistemaprestamista.mobile.data.pending.PendingPayment
 
 data class AppUiState(
     val isLoading: Boolean = true,
+    // True mientras se cargan en segundo plano las listas pesadas (clientes, préstamos,
+    // pagos...) después de mostrar el dashboard. Permite pintar la pantalla rápido y
+    // que las listas muestren un indicador de carga en vez de "vacío".
+    val isWorkloadLoading: Boolean = false,
     val hasSavedSession: Boolean = false,
     val pendingPaymentCount: Int = 0,
     val pendingPayments: List<PendingPayment> = emptyList(),

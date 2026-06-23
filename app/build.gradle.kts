@@ -54,7 +54,11 @@ android {
         }
 
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            // Firmado con la clave debug para poder hacer "Run" del variante release
+            // y probar el rendimiento real en dispositivo. Para publicar en Play Store
+            // hay que reemplazar esto por una keystore de release propia.
+            signingConfig = signingConfigs.getByName("debug")
             buildConfigField(
                 "String",
                 "API_BASE_URL",
@@ -95,6 +99,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.google.maps.compose)
     implementation(libs.google.play.services.location)
+    implementation(libs.libphonenumber.android)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
     testImplementation(libs.junit)

@@ -141,13 +141,31 @@ internal fun ClientCreateScreen(
             FormField(value = fullName, onValueChange = { fullName = it }, label = "Nombre completo *")
             FormField(value = identification, onValueChange = { identification = it }, label = "Cédula / identificación")
             FormField(value = phone, onValueChange = { phone = it }, label = "Teléfono", keyboardType = KeyboardType.Phone)
+            PhoneCountryHint(phone)
             FormField(value = secondaryPhone, onValueChange = { secondaryPhone = it }, label = "Teléfono secundario", keyboardType = KeyboardType.Phone)
+            PhoneCountryHint(secondaryPhone)
             FormField(value = email, onValueChange = { email = it }, label = "Correo electrónico", keyboardType = KeyboardType.Email)
         }
 
         FormSectionCard(title = "Ubicación") {
             FormField(value = address, onValueChange = { address = it }, label = "Dirección *", singleLine = false)
             FormField(value = locationReference, onValueChange = { locationReference = it }, label = "Referencia de ubicación")
+
+            Text(
+                text = "Toca el mapa para abrirlo, buscar y elegir la ubicación; la dirección se completa sola.",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextVariant,
+            )
+            AddressMapPicker(
+                latitude = latitude,
+                longitude = longitude,
+                onLocationPicked = { lat, lng ->
+                    latitude = lat
+                    longitude = lng
+                    locationStatus = "Ubicación elegida en el mapa: %.5f, %.5f".format(lat, lng)
+                },
+                onAddressResolved = { address = it },
+            )
 
             OutlinedButton(
                 onClick = ::captureLocation,

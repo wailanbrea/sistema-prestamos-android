@@ -189,6 +189,7 @@ class PrestamistaRepository(
         paymentMethod: String,
         allocationMode: String,
         targetInstallmentId: Long?,
+        capitalPrepaymentAmount: Double?,
         mobileUuid: String,
     ): PaymentRegistrationResult {
         val pendingPayment = pendingPaymentStore.create(
@@ -198,6 +199,7 @@ class PrestamistaRepository(
             paymentMethod = paymentMethod,
             allocationMode = allocationMode,
             targetInstallmentId = targetInstallmentId,
+            capitalPrepaymentAmount = capitalPrepaymentAmount,
             mobileUuid = mobileUuid,
         )
 
@@ -396,6 +398,7 @@ class PrestamistaRepository(
             mobileUuid = pendingPayment.mobileUuid,
             allocationMode = pendingPayment.allocationMode,
             targetInstallmentId = pendingPayment.targetInstallmentId,
+            capitalPrepaymentAmount = pendingPayment.capitalPrepaymentAmount,
         )
     }
 

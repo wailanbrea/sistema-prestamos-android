@@ -51,6 +51,8 @@ internal fun ClientEditScreen(
     var email by remember { mutableStateOf(detail.email.orEmpty()) }
     var address by remember { mutableStateOf(s.address.orEmpty()) }
     var locationReference by remember { mutableStateOf(s.locationReference.orEmpty()) }
+    var latitude by remember { mutableStateOf(s.latitude) }
+    var longitude by remember { mutableStateOf(s.longitude) }
     var workplace by remember { mutableStateOf(detail.workplace.orEmpty()) }
     var workplacePhone by remember { mutableStateOf(detail.workplacePhone.orEmpty()) }
     var monthlyIncome by remember {
@@ -75,13 +77,30 @@ internal fun ClientEditScreen(
             FormField(value = fullName, onValueChange = { fullName = it }, label = "Nombre completo *")
             FormField(value = identification, onValueChange = { identification = it }, label = "Cédula / identificación")
             FormField(value = phone, onValueChange = { phone = it }, label = "Teléfono principal", keyboardType = KeyboardType.Phone)
+            PhoneCountryHint(phone)
             FormField(value = secondaryPhone, onValueChange = { secondaryPhone = it }, label = "Teléfono secundario", keyboardType = KeyboardType.Phone)
+            PhoneCountryHint(secondaryPhone)
             FormField(value = email, onValueChange = { email = it }, label = "Correo electrónico", keyboardType = KeyboardType.Email)
         }
 
         FormSectionCard(title = "Dirección") {
             FormField(value = address, onValueChange = { address = it }, label = "Dirección *", singleLine = false)
             FormField(value = locationReference, onValueChange = { locationReference = it }, label = "Referencia de ubicación", singleLine = false)
+
+            Text(
+                text = "Toca el mapa para abrirlo, buscar y ajustar la ubicación; la dirección se completa sola.",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF424750),
+            )
+            AddressMapPicker(
+                latitude = latitude,
+                longitude = longitude,
+                onLocationPicked = { lat, lng ->
+                    latitude = lat
+                    longitude = lng
+                },
+                onAddressResolved = { address = it },
+            )
         }
 
         FormSectionCard(title = "Trabajo e ingresos") {
@@ -110,6 +129,8 @@ internal fun ClientEditScreen(
                         email = email.trim().takeIf { it.isNotBlank() },
                         address = address.trim(),
                         locationReference = locationReference.trim().takeIf { it.isNotBlank() },
+                        latitude = latitude,
+                        longitude = longitude,
                         workplace = workplace.trim().takeIf { it.isNotBlank() },
                         workplacePhone = workplacePhone.trim().takeIf { it.isNotBlank() },
                         monthlyIncome = monthlyIncome.toDoubleOrNull(),
