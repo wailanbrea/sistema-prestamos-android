@@ -158,6 +158,13 @@ fun PrestamistaApp(
         onApproveLoan = viewModel::approveLoan,
         onRejectLoan = viewModel::rejectLoan,
         onCreateExpense = viewModel::createExpense,
+        onLoadAccountsPayable = viewModel::loadAccountsPayable,
+        onLoadAccountPayableDetail = viewModel::loadAccountPayableDetail,
+        onCreateAccountPayable = viewModel::createAccountPayable,
+        onUpdateAccountPayable = viewModel::updateAccountPayable,
+        onDeleteAccountPayable = viewModel::deleteAccountPayable,
+        onRegisterAccountPayablePayment = viewModel::registerAccountPayablePayment,
+        onCreateCreditor = viewModel::createCreditor,
         onUpdateAdminClient = viewModel::updateAdminClient,
         onDeleteAdminClient = viewModel::deleteAdminClient,
         onDeleteAdminLoan = viewModel::deleteAdminLoan,
@@ -217,6 +224,13 @@ private fun AuthenticatedShell(
     onApproveLoan: (Long) -> Unit,
     onRejectLoan: (Long, String?) -> Unit,
     onCreateExpense: (Long?, String, String, String) -> Unit,
+    onLoadAccountsPayable: () -> Unit,
+    onLoadAccountPayableDetail: (Long) -> Unit,
+    onCreateAccountPayable: (com.sistemaprestamista.mobile.data.model.AccountPayableInput) -> Unit,
+    onUpdateAccountPayable: (Long, com.sistemaprestamista.mobile.data.model.AccountPayableInput) -> Unit,
+    onDeleteAccountPayable: (Long, () -> Unit) -> Unit,
+    onRegisterAccountPayablePayment: (Long, String, String, String?) -> Unit,
+    onCreateCreditor: (com.sistemaprestamista.mobile.data.model.CreditorInput) -> Unit,
     onUpdateAdminClient: (Long, com.sistemaprestamista.mobile.data.model.UpdateClientInput) -> Unit,
     onDeleteAdminClient: (Long, () -> Unit) -> Unit,
     onDeleteAdminLoan: (Long, () -> Unit) -> Unit,
@@ -586,6 +600,107 @@ private fun AuthenticatedShell(
                     )
                 }
 
+                composable(AppDestination.AccountsPayable.route) {
+                    LaunchedEffect(Unit) {
+                        onLoadAccountsPayable()
+                    }
+
+                    AccountsPayableScreen(
+                        accounts = state.accountsPayable,
+                        isLoading = state.isAccountsPayableLoading,
+                        onRefresh = onLoadAccountsPayable,
+                        onOpenAccount = { accountId ->
+                            navController.navigate(AppRoutes.accountPayableDetail(accountId))
+                        },
+                        onCreateAccount = {
+                            navController.navigate(AppRoutes.AccountPayableCreate)
+                        },
+                    )
+                }
+
+                composable(AppRoutes.AccountPayableCreate) {
+                    LaunchedEffect(Unit) {
+                        onLoadAccountsPayable()
+                    }
+                    LaunchedEffect(state.lastCreatedAccountPayableId) {
+                        val accountId = state.lastCreatedAccountPayableId ?: return@LaunchedEffect
+                        onClearCreationMarkers()
+                        navController.popBackStack()
+                        navController.navigate(AppRoutes.accountPayableDetail(accountId))
+                    }
+
+                    AccountPayableFormScreen(
+                        existing = null,
+                        creditors = state.creditors,
+                        defaultCurrency = state.user?.company?.defaultCurrency ?: "RD$",
+                        isSaving = state.isAccountPayableSaving,
+                        onCreateCreditor = onCreateCreditor,
+                        onSubmit = onCreateAccountPayable,
+                    )
+                }
+
+                composable(AppRoutes.AccountPayableEdit) { backStackEntry ->
+                    val accountId = backStackEntry.arguments?.getString("accountId")?.toLongOrNull()
+                    val detail = state.selectedAccountPayable?.takeIf { it.summary.id == accountId }
+
+                    LaunchedEffect(accountId) {
+                        if (accountId != null) {
+                            onLoadAccountPayableDetail(accountId)
+                        }
+                    }
+                    LaunchedEffect(state.isAccountPayableSaving, state.successMessage) {
+                        if (!state.isAccountPayableSaving && state.successMessage != null && detail != null) {
+                            navController.popBackStack()
+                        }
+                    }
+
+                    if (detail == null) {
+                        LoadingSplash()
+                    } else {
+                        AccountPayableFormScreen(
+                            existing = detail,
+                            creditors = state.creditors,
+                            defaultCurrency = state.user?.company?.defaultCurrency ?: "RD$",
+                            isSaving = state.isAccountPayableSaving,
+                            onCreateCreditor = onCreateCreditor,
+                            onSubmit = { input ->
+                                if (accountId != null) {
+                                    onUpdateAccountPayable(accountId, input)
+                                }
+                            },
+                        )
+                    }
+                }
+
+                composable(AppRoutes.AccountPayableDetail) { backStackEntry ->
+                    val accountId = backStackEntry.arguments?.getString("accountId")?.toLongOrNull()
+
+                    LaunchedEffect(accountId) {
+                        if (accountId != null) {
+                            onLoadAccountPayableDetail(accountId)
+                        }
+                    }
+
+                    AccountPayableDetailScreen(
+                        detail = state.selectedAccountPayable?.takeIf { it.summary.id == accountId },
+                        isLoading = state.isAccountsPayableLoading,
+                        isSaving = state.isAccountPayableSaving,
+                        onRegisterPayment = onRegisterAccountPayablePayment,
+                        onEdit = {
+                            if (accountId != null) {
+                                navController.navigate(AppRoutes.accountPayableEdit(accountId))
+                            }
+                        },
+                        onDelete = {
+                            if (accountId != null) {
+                                onDeleteAccountPayable(accountId) {
+                                    navController.popBackStack()
+                                }
+                            }
+                        },
+                    )
+                }
+
                 composable(AppDestination.Expenses.route) {
                     ExpensesScreen(
                         expenses = state.expenses,
@@ -672,7 +787,7 @@ private fun AuthenticatedShell(
                         onOpenInstallment = { },
                         // FAB "Registrar pago": solo para back-office con permiso de cobro.
                         onRegisterPayment = if (state.canRegisterAdminPayment) onRegisterAdminPayment else null,
-                        isPaymentLoading = state.isLoading,
+                        isPaymentLoading = state.isPaymentSaving,
                         onGenerateDocument = if (state.canGenerateDocuments) onGenerateLoanDocument else null,
                         isDocumentGenerating = state.isDocumentGenerating,
                         contract = state.selectedLoanContract?.takeIf { state.selectedLoanDetail?.summary?.id == loanId },
@@ -1035,7 +1150,7 @@ private fun AppBottomBar(
                 },
                 label = {
                     Text(
-                        text = item.title,
+                        text = item.navigationLabel,
                         style = MaterialTheme.typography.labelMedium,
                         color = if (selected) PrimaryContainer else NavUnselected,
                         fontWeight = FontWeight.Bold,
@@ -1082,6 +1197,9 @@ private fun currentDestination(
             AppRoutes.AdminCollectorCreate,
             AppRoutes.AdminCollectorDetail,
             AppRoutes.AdminCollectorEdit -> AppDestination.CollectorsAdmin
+            AppRoutes.AccountPayableDetail,
+            AppRoutes.AccountPayableCreate,
+            AppRoutes.AccountPayableEdit -> AppDestination.AccountsPayable
             AppRoutes.ReceiptDetail -> AppDestination.Payments
             AppRoutes.PrintSettings,
             AppRoutes.PendingPayments -> AppDestination.Profile
@@ -1107,6 +1225,9 @@ private fun currentTitle(
         AppRoutes.AdminQuotes -> "Cotizaciones"
         AppRoutes.AdminQuoteCreate -> "Nueva Cotización"
         AppRoutes.AdminQuoteDetail -> "Detalle de Cotización"
+        AppRoutes.AccountPayableCreate -> "Nueva cuenta por pagar"
+        AppRoutes.AccountPayableDetail -> "Detalle de cuenta"
+        AppRoutes.AccountPayableEdit -> "Editar cuenta por pagar"
         AppRoutes.ReceiptDetail -> "Recibo"
         AppRoutes.PrintSettings -> "Impresora"
         AppRoutes.PendingPayments -> "Cobros pendientes"

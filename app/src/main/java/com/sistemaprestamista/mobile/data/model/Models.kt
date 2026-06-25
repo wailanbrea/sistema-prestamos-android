@@ -17,6 +17,15 @@ data class UserProfile(
     val permissions: List<String>,
     /** Cobrador de campo real (vinculado a un Collector activo). Lo envía el backend. */
     val isCollector: Boolean = false,
+    val features: UserFeatures = UserFeatures(),
+)
+
+data class UserFeatures(
+    /**
+     * `null` indica que el backend es anterior al descubrimiento de módulos.
+     * En ese caso la app conserva compatibilidad usando el permiso explícito.
+     */
+    val accountsPayable: Boolean? = null,
 )
 
 data class DashboardSummary(
@@ -403,6 +412,115 @@ data class CashSummary(
     val totalIn: Double,
     val totalOut: Double,
     val balance: Double,
+)
+
+data class CreditorSummary(
+    val id: Long,
+    val name: String,
+    val document: String?,
+    val phone: String?,
+    val email: String?,
+    val address: String?,
+    val notes: String?,
+    val status: String,
+    val accountsPayableCount: Int = 0,
+)
+
+data class AccountPayableSummary(
+    val id: Long,
+    val reference: String,
+    val currency: String,
+    val creditor: CreditorSummary?,
+    val principalAmount: Double,
+    val interestRate: Double,
+    val interestType: String,
+    val paymentFrequency: String,
+    val calculationMethod: String,
+    val termQuantity: Int,
+    val installmentAmount: Double,
+    val totalInterest: Double,
+    val totalAmount: Double,
+    val paidPrincipal: Double,
+    val paidInterest: Double,
+    val paidLateFee: Double,
+    val remainingBalance: Double,
+    val disbursementDate: String?,
+    val firstPaymentDate: String?,
+    val endDate: String?,
+    val status: String,
+    val paymentsCount: Int = 0,
+)
+
+data class AccountPayableInstallment(
+    val id: Long,
+    val installmentNumber: Int,
+    val dueDate: String?,
+    val principalAmount: Double,
+    val interestAmount: Double,
+    val installmentAmount: Double,
+    val lateFee: Double,
+    val paidPrincipal: Double,
+    val paidInterest: Double,
+    val paidLateFee: Double,
+    val totalPaid: Double,
+    val pendingPrincipal: Double,
+    val pendingInterest: Double,
+    val pendingLateFee: Double,
+    val pendingAmount: Double,
+    val daysLate: Int,
+    val status: String,
+    val paidAt: String?,
+)
+
+data class AccountPayablePayment(
+    val id: Long,
+    val paymentNumber: String,
+    val accountPayableId: Long,
+    val creditorId: Long,
+    val paymentDate: String?,
+    val amount: Double,
+    val principalPaid: Double,
+    val interestPaid: Double,
+    val lateFeePaid: Double,
+    val previousBalance: Double,
+    val newBalance: Double,
+    val paymentMethod: String,
+    val notes: String?,
+)
+
+data class AccountPayableDetail(
+    val summary: AccountPayableSummary,
+    val lateFeeType: String,
+    val lateFeeValue: Double,
+    val notes: String?,
+    val installments: List<AccountPayableInstallment>,
+    val payments: List<AccountPayablePayment>,
+)
+
+data class AccountPayableInput(
+    val creditorId: Long,
+    val currency: String,
+    val principalAmount: Double,
+    val interestRate: Double,
+    val interestType: String,
+    val paymentFrequency: String,
+    val calculationMethod: String,
+    val termQuantity: Int,
+    val lateFeeType: String,
+    val lateFeeValue: Double,
+    val disbursementDate: String,
+    val firstPaymentDate: String,
+    val notes: String?,
+)
+
+data class CreditorInput(
+    val name: String,
+    val document: String? = null,
+    val phone: String? = null,
+    val email: String? = null,
+    val address: String? = null,
+    val notes: String? = null,
+    val status: String = "active",
 )
 
 /** Un reporte del catálogo (admin/reports/catalog), con enlace firmado a su PDF. */

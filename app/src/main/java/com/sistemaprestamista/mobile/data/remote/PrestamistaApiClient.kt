@@ -2,6 +2,11 @@ package com.sistemaprestamista.mobile.data.remote
 
 import com.sistemaprestamista.mobile.BuildConfig
 import com.sistemaprestamista.mobile.data.ResponseCache
+import com.sistemaprestamista.mobile.data.model.AccountPayableDetail
+import com.sistemaprestamista.mobile.data.model.AccountPayableInput
+import com.sistemaprestamista.mobile.data.model.AccountPayableInstallment
+import com.sistemaprestamista.mobile.data.model.AccountPayablePayment
+import com.sistemaprestamista.mobile.data.model.AccountPayableSummary
 import com.sistemaprestamista.mobile.data.model.AdminReportSummary
 import com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow
 import com.sistemaprestamista.mobile.data.model.Company
@@ -33,6 +38,8 @@ import com.sistemaprestamista.mobile.data.model.CollectorCommissionSummary
 import com.sistemaprestamista.mobile.data.model.CollectorDetail
 import com.sistemaprestamista.mobile.data.model.CollectorOption
 import com.sistemaprestamista.mobile.data.model.CollectorStats
+import com.sistemaprestamista.mobile.data.model.CreditorInput
+import com.sistemaprestamista.mobile.data.model.CreditorSummary
 import com.sistemaprestamista.mobile.data.model.NewClientInput
 import com.sistemaprestamista.mobile.data.model.NewCollectorInput
 import com.sistemaprestamista.mobile.data.model.NewLoanInput
@@ -814,6 +821,111 @@ class PrestamistaApiClient(
         }
     }
 
+    // --- Cuentas por pagar / acreedores ---
+
+    fun accountsPayable(token: String): List<AccountPayableSummary> {
+        val accounts = mutableListOf<AccountPayableSummary>()
+        var page = 1
+        var lastPage: Int
+
+        do {
+            val json = request(path = "admin/accounts-payable?page=$page", method = "GET", token = token)
+            accounts += json.optJSONArray("data").mapObjects(::parseAccountPayable)
+            lastPage = json.optJSONObject("meta")?.optInt("last_page", page) ?: page
+            page++
+        } while (page <= lastPage)
+
+        return accounts
+    }
+
+    fun accountPayable(token: String, accountId: Long): AccountPayableDetail {
+        val json = request(path = "admin/accounts-payable/$accountId", method = "GET", token = token)
+        return parseAccountPayableDetail(json.getJSONObject("data"))
+    }
+
+    fun createAccountPayable(token: String, input: AccountPayableInput): AccountPayableDetail {
+        val json = request(
+            path = "admin/accounts-payable",
+            method = "POST",
+            token = token,
+            body = accountPayablePayload(input),
+        )
+        return parseAccountPayableDetail(json.getJSONObject("data"))
+    }
+
+    fun updateAccountPayable(
+        token: String,
+        accountId: Long,
+        input: AccountPayableInput,
+    ): AccountPayableDetail {
+        val json = request(
+            path = "admin/accounts-payable/$accountId",
+            method = "PUT",
+            token = token,
+            body = accountPayablePayload(input),
+        )
+        return parseAccountPayableDetail(json.getJSONObject("data"))
+    }
+
+    fun deleteAccountPayable(token: String, accountId: Long) {
+        request(path = "admin/accounts-payable/$accountId", method = "DELETE", token = token)
+    }
+
+    fun registerAccountPayablePayment(
+        token: String,
+        accountId: Long,
+        amount: Double,
+        paymentDate: String,
+        paymentMethod: String,
+        notes: String?,
+    ): AccountPayablePayment {
+        val payload = JSONObject()
+            .put("amount", amount)
+            .put("payment_date", paymentDate)
+            .put("payment_method", paymentMethod)
+            .put("notes", notes ?: JSONObject.NULL)
+        val json = request(
+            path = "admin/accounts-payable/$accountId/payments",
+            method = "POST",
+            token = token,
+            body = payload,
+        )
+        return parseAccountPayablePayment(json.getJSONObject("data"))
+    }
+
+    fun creditors(token: String): List<CreditorSummary> {
+        val creditors = mutableListOf<CreditorSummary>()
+        var page = 1
+        var lastPage: Int
+
+        do {
+            val json = request(path = "admin/accounts-payable/creditors?page=$page", method = "GET", token = token)
+            creditors += json.optJSONArray("data").mapObjects(::parseCreditor)
+            lastPage = json.optJSONObject("meta")?.optInt("last_page", page) ?: page
+            page++
+        } while (page <= lastPage)
+
+        return creditors
+    }
+
+    fun createCreditor(token: String, input: CreditorInput): CreditorSummary {
+        val payload = JSONObject()
+            .put("name", input.name)
+            .put("document", input.document ?: JSONObject.NULL)
+            .put("phone", input.phone ?: JSONObject.NULL)
+            .put("email", input.email ?: JSONObject.NULL)
+            .put("address", input.address ?: JSONObject.NULL)
+            .put("notes", input.notes ?: JSONObject.NULL)
+            .put("status", input.status)
+        val json = request(
+            path = "admin/accounts-payable/creditors",
+            method = "POST",
+            token = token,
+            body = payload,
+        )
+        return parseCreditor(json.getJSONObject("data"))
+    }
+
     // --- Caja / Contabilidad ---
 
     fun cashboxExpenses(token: String): List<com.sistemaprestamista.mobile.data.model.ExpenseItem> {
@@ -885,6 +997,116 @@ class PrestamistaApiClient(
             amount = json.optDouble("amount", 0.0),
             paymentMethod = json.optString("payment_method"),
         )
+    }
+
+    private fun parseCreditor(json: JSONObject): CreditorSummary {
+        return CreditorSummary(
+            id = json.getLong("id"),
+            name = json.optString("name"),
+            document = json.nullableString("document"),
+            phone = json.nullableString("phone"),
+            email = json.nullableString("email"),
+            address = json.nullableString("address"),
+            notes = json.nullableString("notes"),
+            status = json.optString("status"),
+            accountsPayableCount = json.optInt("accounts_payable_count", 0),
+        )
+    }
+
+    private fun parseAccountPayable(json: JSONObject): AccountPayableSummary {
+        return AccountPayableSummary(
+            id = json.getLong("id"),
+            reference = json.optString("reference"),
+            currency = json.optString("currency", "RD$"),
+            creditor = json.optJSONObject("creditor")?.let(::parseCreditor),
+            principalAmount = json.optDouble("principal_amount", 0.0),
+            interestRate = json.optDouble("interest_rate", 0.0),
+            interestType = json.optString("interest_type"),
+            paymentFrequency = json.optString("payment_frequency"),
+            calculationMethod = json.optString("calculation_method"),
+            termQuantity = json.optInt("term_quantity", 0),
+            installmentAmount = json.optDouble("installment_amount", 0.0),
+            totalInterest = json.optDouble("total_interest", 0.0),
+            totalAmount = json.optDouble("total_amount", 0.0),
+            paidPrincipal = json.optDouble("paid_principal", 0.0),
+            paidInterest = json.optDouble("paid_interest", 0.0),
+            paidLateFee = json.optDouble("paid_late_fee", 0.0),
+            remainingBalance = json.optDouble("remaining_balance", 0.0),
+            disbursementDate = json.nullableString("disbursement_date"),
+            firstPaymentDate = json.nullableString("first_payment_date"),
+            endDate = json.nullableString("end_date"),
+            status = json.optString("status"),
+            paymentsCount = json.optInt("payments_count", 0),
+        )
+    }
+
+    private fun parseAccountPayableDetail(json: JSONObject): AccountPayableDetail {
+        return AccountPayableDetail(
+            summary = parseAccountPayable(json),
+            lateFeeType = json.optString("late_fee_type"),
+            lateFeeValue = json.optDouble("late_fee_value", 0.0),
+            notes = json.nullableString("notes"),
+            installments = json.optJSONArray("installments").mapObjects(::parseAccountPayableInstallment),
+            payments = json.optJSONArray("payments").mapObjects(::parseAccountPayablePayment),
+        )
+    }
+
+    private fun parseAccountPayableInstallment(json: JSONObject): AccountPayableInstallment {
+        return AccountPayableInstallment(
+            id = json.getLong("id"),
+            installmentNumber = json.optInt("installment_number"),
+            dueDate = json.nullableString("due_date"),
+            principalAmount = json.optDouble("principal_amount", 0.0),
+            interestAmount = json.optDouble("interest_amount", 0.0),
+            installmentAmount = json.optDouble("installment_amount", 0.0),
+            lateFee = json.optDouble("late_fee", 0.0),
+            paidPrincipal = json.optDouble("paid_principal", 0.0),
+            paidInterest = json.optDouble("paid_interest", 0.0),
+            paidLateFee = json.optDouble("paid_late_fee", 0.0),
+            totalPaid = json.optDouble("total_paid", 0.0),
+            pendingPrincipal = json.optDouble("pending_principal", 0.0),
+            pendingInterest = json.optDouble("pending_interest", 0.0),
+            pendingLateFee = json.optDouble("pending_late_fee", 0.0),
+            pendingAmount = json.optDouble("pending_amount", 0.0),
+            daysLate = json.optInt("days_late", 0),
+            status = json.optString("status"),
+            paidAt = json.nullableString("paid_at"),
+        )
+    }
+
+    private fun parseAccountPayablePayment(json: JSONObject): AccountPayablePayment {
+        return AccountPayablePayment(
+            id = json.getLong("id"),
+            paymentNumber = json.optString("payment_number"),
+            accountPayableId = json.optLong("account_payable_id"),
+            creditorId = json.optLong("creditor_id"),
+            paymentDate = json.nullableString("payment_date"),
+            amount = json.optDouble("amount", 0.0),
+            principalPaid = json.optDouble("principal_paid", 0.0),
+            interestPaid = json.optDouble("interest_paid", 0.0),
+            lateFeePaid = json.optDouble("late_fee_paid", 0.0),
+            previousBalance = json.optDouble("previous_balance", 0.0),
+            newBalance = json.optDouble("new_balance", 0.0),
+            paymentMethod = json.optString("payment_method"),
+            notes = json.nullableString("notes"),
+        )
+    }
+
+    private fun accountPayablePayload(input: AccountPayableInput): JSONObject {
+        return JSONObject()
+            .put("creditor_id", input.creditorId)
+            .put("currency", input.currency)
+            .put("principal_amount", input.principalAmount)
+            .put("interest_rate", input.interestRate)
+            .put("interest_type", input.interestType)
+            .put("payment_frequency", input.paymentFrequency)
+            .put("calculation_method", input.calculationMethod)
+            .put("term_quantity", input.termQuantity)
+            .put("late_fee_type", input.lateFeeType)
+            .put("late_fee_value", input.lateFeeValue)
+            .put("disbursement_date", input.disbursementDate)
+            .put("first_payment_date", input.firstPaymentDate)
+            .put("notes", input.notes ?: JSONObject.NULL)
     }
 
     private fun rangeQuery(dateFrom: String?, dateTo: String?): String {
@@ -975,6 +1197,7 @@ class PrestamistaApiClient(
 
     private fun parseUser(json: JSONObject): UserProfile {
         val company = json.getJSONObject("company")
+        val features = json.optJSONObject("features") ?: JSONObject()
 
         return UserProfile(
             id = json.getLong("id"),
@@ -983,6 +1206,13 @@ class PrestamistaApiClient(
             roles = json.optJSONArray("roles").toStringList(),
             permissions = json.optJSONArray("permissions").toStringList(),
             isCollector = json.optBoolean("is_collector", false),
+            features = com.sistemaprestamista.mobile.data.model.UserFeatures(
+                accountsPayable = if (features.has("accounts_payable")) {
+                    features.optBoolean("accounts_payable")
+                } else {
+                    null
+                },
+            ),
             company = Company(
                 id = company.optLong("id"),
                 name = company.optString("name"),

@@ -1,6 +1,10 @@
 package com.sistemaprestamista.mobile.data
 
 import android.content.Context
+import com.sistemaprestamista.mobile.data.model.AccountPayableDetail
+import com.sistemaprestamista.mobile.data.model.AccountPayableInput
+import com.sistemaprestamista.mobile.data.model.AccountPayablePayment
+import com.sistemaprestamista.mobile.data.model.AccountPayableSummary
 import com.sistemaprestamista.mobile.data.model.CashMovementInput
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
@@ -11,6 +15,8 @@ import com.sistemaprestamista.mobile.data.model.CollectorSummary
 import com.sistemaprestamista.mobile.data.model.CollectorRoute
 import com.sistemaprestamista.mobile.data.model.CollectorRouteSession
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
+import com.sistemaprestamista.mobile.data.model.CreditorInput
+import com.sistemaprestamista.mobile.data.model.CreditorSummary
 import com.sistemaprestamista.mobile.data.model.InstallmentDetail
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
@@ -103,6 +109,44 @@ class PrestamistaRepository(
 
     fun adminReportCatalog(): List<com.sistemaprestamista.mobile.data.model.ReportCatalogItem> =
         apiClient.adminReportCatalog(requiredToken())
+
+    // --- Cuentas por pagar / acreedores ---
+
+    fun accountsPayable(): List<AccountPayableSummary> =
+        apiClient.accountsPayable(requiredToken())
+
+    fun accountPayable(accountId: Long): AccountPayableDetail =
+        apiClient.accountPayable(requiredToken(), accountId)
+
+    fun createAccountPayable(input: AccountPayableInput): AccountPayableDetail =
+        apiClient.createAccountPayable(requiredToken(), input)
+
+    fun updateAccountPayable(accountId: Long, input: AccountPayableInput): AccountPayableDetail =
+        apiClient.updateAccountPayable(requiredToken(), accountId, input)
+
+    fun deleteAccountPayable(accountId: Long) =
+        apiClient.deleteAccountPayable(requiredToken(), accountId)
+
+    fun registerAccountPayablePayment(
+        accountId: Long,
+        amount: Double,
+        paymentDate: String,
+        paymentMethod: String,
+        notes: String?,
+    ): AccountPayablePayment = apiClient.registerAccountPayablePayment(
+        requiredToken(),
+        accountId,
+        amount,
+        paymentDate,
+        paymentMethod,
+        notes,
+    )
+
+    fun creditors(): List<CreditorSummary> =
+        apiClient.creditors(requiredToken())
+
+    fun createCreditor(input: CreditorInput): CreditorSummary =
+        apiClient.createCreditor(requiredToken(), input)
 
     // --- Caja / Contabilidad ---
 

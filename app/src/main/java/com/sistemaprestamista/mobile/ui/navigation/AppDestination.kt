@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.PendingActions
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Receipt
+import androidx.compose.material.icons.outlined.RequestQuote
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.sistemaprestamista.mobile.ui.AppUiState
 
@@ -29,6 +30,7 @@ enum class AppDestination(
     val title: String,
     val icon: ImageVector,
     val isVisible: (AppUiState) -> Boolean,
+    val navigationLabel: String = title,
 ) {
     Home("home", "Inicio", Icons.Outlined.Home, { true }),
 
@@ -44,6 +46,13 @@ enum class AppDestination(
     CollectorsAdmin("adminCollectors", "Cobradores", Icons.Outlined.People, { it.canManagePortfolio }),
     Approvals("approvals", "Aprobar", Icons.Outlined.PendingActions, { it.canApprove }),
     Reports("reports", "Reportes", Icons.Outlined.Assessment, { it.canViewReports }),
+    AccountsPayable(
+        "accountsPayable",
+        "Por pagar",
+        Icons.Outlined.RequestQuote,
+        { it.canManageAccountsPayable },
+        navigationLabel = "Cuentas",
+    ),
 
     // Caja / Contabilidad.
     Expenses("cashboxExpenses", "Gastos", Icons.Outlined.Receipt, { it.canManageExpenses }),
@@ -69,6 +78,9 @@ object AppRoutes {
     const val AdminQuotes = "admin/quotes"
     const val AdminQuoteCreate = "admin/quote-create"
     const val AdminQuoteDetail = "admin/quote/{quoteId}"
+    const val AccountPayableDetail = "accounts-payable/{accountId}"
+    const val AccountPayableCreate = "accounts-payable/create"
+    const val AccountPayableEdit = "accounts-payable/{accountId}/edit"
     const val ReceiptDetail = "receipt"
     const val PrintSettings = "settings/printer"
     const val PendingPayments = "payments/pending"
@@ -92,4 +104,8 @@ object AppRoutes {
     fun adminCollectorEdit(collectorId: Long): String = "admin/collector-edit/$collectorId"
 
     fun adminQuoteDetail(quoteId: Long): String = "admin/quote/$quoteId"
+
+    fun accountPayableDetail(accountId: Long): String = "accounts-payable/$accountId"
+
+    fun accountPayableEdit(accountId: Long): String = "accounts-payable/$accountId/edit"
 }

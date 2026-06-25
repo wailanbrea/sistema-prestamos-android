@@ -1,6 +1,8 @@
 package com.sistemaprestamista.mobile.ui
 
 import com.sistemaprestamista.mobile.data.model.AdminReportSummary
+import com.sistemaprestamista.mobile.data.model.AccountPayableDetail
+import com.sistemaprestamista.mobile.data.model.AccountPayableSummary
 import com.sistemaprestamista.mobile.data.model.CashMovementItem
 import com.sistemaprestamista.mobile.data.model.CashSummary
 import com.sistemaprestamista.mobile.data.model.ClientRegistrationLink
@@ -10,6 +12,7 @@ import com.sistemaprestamista.mobile.data.model.CollectorPerformanceRow
 import com.sistemaprestamista.mobile.data.model.ExpenseCategoryOption
 import com.sistemaprestamista.mobile.data.model.ExpenseItem
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
+import com.sistemaprestamista.mobile.data.model.CreditorSummary
 import com.sistemaprestamista.mobile.data.model.ClientDetail
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorSummary
@@ -37,6 +40,9 @@ data class AppUiState(
     val pendingPaymentCount: Int = 0,
     val pendingPayments: List<PendingPayment> = emptyList(),
     val isPendingSyncLoading: Boolean = false,
+    // Flag dedicado al registro de un cobro (separado del isLoading global) para que
+    // el diálogo de pago muestre "Procesando..." y no se cierre por cargas ajenas.
+    val isPaymentSaving: Boolean = false,
     val user: UserProfile? = null,
     val dashboard: DashboardSummary? = null,
     val collectorSummary: CollectorSummary? = null,
@@ -100,6 +106,13 @@ data class AppUiState(
     val cashMovements: List<CashMovementItem> = emptyList(),
     val cashSummary: CashSummary? = null,
     val isExpenseSaving: Boolean = false,
+    // Cuentas por pagar / acreedores
+    val accountsPayable: List<AccountPayableSummary> = emptyList(),
+    val creditors: List<CreditorSummary> = emptyList(),
+    val selectedAccountPayable: AccountPayableDetail? = null,
+    val isAccountsPayableLoading: Boolean = false,
+    val isAccountPayableSaving: Boolean = false,
+    val lastCreatedAccountPayableId: Long? = null,
     // Cobradores (back-office)
     val selectedCollectorDetail: CollectorDetail? = null,
     val isCollectorSaving: Boolean = false,
@@ -177,4 +190,10 @@ data class AppUiState(
      */
     val canManageExpenses: Boolean = permissions.contains("expenses.manage") && !canManagePortfolio && !isCollector
     val canViewCash: Boolean = permissions.contains("cash.view") && !canManagePortfolio && !isCollector
+
+    /** Módulo habilitado por permiso, licencia y visibilidad de menú del backend. */
+    val canManageAccountsPayable: Boolean =
+        !isCollector &&
+            (user?.features?.accountsPayable
+                ?: permissions.contains("accounts-payable.manage"))
 }

@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sistemaprestamista.mobile.data.PaymentRegistrationResult
 import com.sistemaprestamista.mobile.data.PrestamistaRepository
+import com.sistemaprestamista.mobile.data.model.AccountPayableInput
+import com.sistemaprestamista.mobile.data.model.CreditorInput
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.RoutePoint
 import com.sistemaprestamista.mobile.data.pending.PendingPayment
@@ -80,7 +82,7 @@ class MainViewModel(
             }.onSuccess { message ->
                 _uiState.update { it.copy(isLoading = false, successMessage = message) }
             }.onFailure { throwable ->
-                _uiState.update { it.copy(isLoading = false, errorMessage = throwable.userMessage()) }
+                _uiState.update { it.copy(isLoading = false, isPaymentSaving = false, errorMessage = throwable.userMessage()) }
             }
         }
     }
@@ -107,7 +109,7 @@ class MainViewModel(
             }.onSuccess { message ->
                 _uiState.update { it.copy(isLoading = false, successMessage = message) }
             }.onFailure { throwable ->
-                _uiState.update { it.copy(isLoading = false, errorMessage = throwable.userMessage()) }
+                _uiState.update { it.copy(isLoading = false, isPaymentSaving = false, errorMessage = throwable.userMessage()) }
             }
         }
     }
@@ -161,7 +163,7 @@ class MainViewModel(
                     )
                 }
             }.onFailure { throwable ->
-                _uiState.update { it.copy(isLoading = false, errorMessage = throwable.userMessage()) }
+                _uiState.update { it.copy(isLoading = false, isPaymentSaving = false, errorMessage = throwable.userMessage()) }
             }
         }
     }
@@ -194,7 +196,7 @@ class MainViewModel(
         val mobileUuid = paymentUuidByAttempt.getOrPut(attemptKey) { UUID.randomUUID().toString() }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null, lastPaymentReceipt = null) }
+            _uiState.update { it.copy(isLoading = true, isPaymentSaving = true, errorMessage = null, lastPaymentReceipt = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
                     repository.registerCollectorPayment(
@@ -218,6 +220,7 @@ class MainViewModel(
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
+                                isPaymentSaving = false,
                                 pendingPaymentCount = repository.pendingPaymentCount(),
                                 lastPaymentReceipt = result.receipt,
                                 selectedPaymentDetail = result.receipt,
@@ -229,6 +232,7 @@ class MainViewModel(
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
+                                isPaymentSaving = false,
                                 pendingPaymentCount = result.pendingCount,
                                 successMessage = "Cobro guardado sin conexion. Se sincronizara automaticamente.",
                             )
@@ -236,7 +240,7 @@ class MainViewModel(
                     }
                 }
             }.onFailure { throwable ->
-                _uiState.update { it.copy(isLoading = false, errorMessage = throwable.userMessage()) }
+                _uiState.update { it.copy(isLoading = false, isPaymentSaving = false, errorMessage = throwable.userMessage()) }
             }
         }
     }
@@ -262,7 +266,7 @@ class MainViewModel(
         val mobileUuid = paymentUuidByAttempt.getOrPut(attemptKey) { UUID.randomUUID().toString() }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null, lastPaymentReceipt = null) }
+            _uiState.update { it.copy(isLoading = true, isPaymentSaving = true, errorMessage = null, lastPaymentReceipt = null) }
             runCatching {
                 withContext(Dispatchers.IO) {
                     repository.registerAdminPayment(
@@ -280,13 +284,14 @@ class MainViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
+                        isPaymentSaving = false,
                         lastPaymentReceipt = receipt,
                         selectedPaymentDetail = receipt,
                     )
                 }
                 refreshAdminLoanAfterPayment(loanId)
             }.onFailure { throwable ->
-                _uiState.update { it.copy(isLoading = false, errorMessage = throwable.userMessage()) }
+                _uiState.update { it.copy(isLoading = false, isPaymentSaving = false, errorMessage = throwable.userMessage()) }
             }
         }
     }
@@ -799,7 +804,15 @@ class MainViewModel(
 
     /** Limpia los marcadores de "recién creado" usados para navegar tras guardar. */
     fun clearCreationMarkers() {
-        _uiState.update { it.copy(lastCreatedClientId = null, lastCreatedQuoteId = null, lastCreatedLoanId = null, lastCreatedCollectorId = null) }
+        _uiState.update {
+            it.copy(
+                lastCreatedClientId = null,
+                lastCreatedQuoteId = null,
+                lastCreatedLoanId = null,
+                lastCreatedCollectorId = null,
+                lastCreatedAccountPayableId = null,
+            )
+        }
     }
 
     /** Recarga el detalle del préstamo cobrado y su fila en la cartera; un fallo se ignora. */
@@ -1503,6 +1516,275 @@ class MainViewModel(
                 }
             }.onFailure { throwable ->
                 _uiState.update { it.copy(isExpenseSaving = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    fun loadAccountsPayable() {
+        val state = uiState.value
+        if (!state.canManageAccountsPayable || state.isAccountsPayableLoading) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isAccountsPayableLoading = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    coroutineScope {
+                        val accounts = async { repository.accountsPayable() }
+                        val creditors = async { repository.creditors() }
+                        accounts.await() to creditors.await()
+                    }
+                }
+            }.onSuccess { (accounts, creditors) ->
+                _uiState.update {
+                    it.copy(
+                        isAccountsPayableLoading = false,
+                        accountsPayable = accounts,
+                        creditors = creditors,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isAccountsPayableLoading = false,
+                        errorMessage = throwable.userMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun loadAccountPayableDetail(accountId: Long) {
+        val state = uiState.value
+        if (!state.canManageAccountsPayable || state.isAccountsPayableLoading) return
+        if (state.selectedAccountPayable?.summary?.id == accountId) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isAccountsPayableLoading = true,
+                    selectedAccountPayable = null,
+                    errorMessage = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.accountPayable(accountId) }
+            }.onSuccess { detail ->
+                _uiState.update {
+                    it.copy(
+                        isAccountsPayableLoading = false,
+                        selectedAccountPayable = detail,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isAccountsPayableLoading = false,
+                        errorMessage = throwable.userMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun createAccountPayable(input: AccountPayableInput) {
+        if (!uiState.value.canManageAccountsPayable || uiState.value.isAccountPayableSaving) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isAccountPayableSaving = true,
+                    errorMessage = null,
+                    successMessage = null,
+                    lastCreatedAccountPayableId = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val detail = repository.createAccountPayable(input)
+                    detail to repository.accountsPayable()
+                }
+            }.onSuccess { (detail, accounts) ->
+                _uiState.update {
+                    it.copy(
+                        isAccountPayableSaving = false,
+                        accountsPayable = accounts,
+                        selectedAccountPayable = detail,
+                        lastCreatedAccountPayableId = detail.summary.id,
+                        successMessage = "Cuenta por pagar creada.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isAccountPayableSaving = false,
+                        errorMessage = throwable.userMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun updateAccountPayable(accountId: Long, input: AccountPayableInput) {
+        if (!uiState.value.canManageAccountsPayable || uiState.value.isAccountPayableSaving) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isAccountPayableSaving = true,
+                    errorMessage = null,
+                    successMessage = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val detail = repository.updateAccountPayable(accountId, input)
+                    detail to repository.accountsPayable()
+                }
+            }.onSuccess { (detail, accounts) ->
+                _uiState.update {
+                    it.copy(
+                        isAccountPayableSaving = false,
+                        accountsPayable = accounts,
+                        selectedAccountPayable = detail,
+                        successMessage = "Cuenta por pagar actualizada.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isAccountPayableSaving = false,
+                        errorMessage = throwable.userMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun deleteAccountPayable(accountId: Long, onSuccess: () -> Unit) {
+        if (!uiState.value.canManageAccountsPayable || uiState.value.isAccountPayableSaving) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isAccountPayableSaving = true,
+                    errorMessage = null,
+                    successMessage = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.deleteAccountPayable(accountId)
+                    repository.accountsPayable()
+                }
+            }.onSuccess { accounts ->
+                _uiState.update {
+                    it.copy(
+                        isAccountPayableSaving = false,
+                        accountsPayable = accounts,
+                        selectedAccountPayable = null,
+                        successMessage = "Cuenta por pagar eliminada.",
+                    )
+                }
+                onSuccess()
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isAccountPayableSaving = false,
+                        errorMessage = throwable.userMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun registerAccountPayablePayment(
+        accountId: Long,
+        amountText: String,
+        paymentMethod: String,
+        notes: String?,
+    ) {
+        val amount = amountText.toDoubleOrNull()
+        if (amount == null || amount <= 0) {
+            _uiState.update { it.copy(errorMessage = "El monto debe ser mayor que cero.") }
+            return
+        }
+        if (paymentMethod.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Selecciona un metodo de pago.") }
+            return
+        }
+        if (!uiState.value.canManageAccountsPayable || uiState.value.isAccountPayableSaving) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isAccountPayableSaving = true,
+                    errorMessage = null,
+                    successMessage = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.registerAccountPayablePayment(
+                        accountId = accountId,
+                        amount = amount,
+                        paymentDate = LocalDate.now().toString(),
+                        paymentMethod = paymentMethod,
+                        notes = notes,
+                    )
+                    coroutineScope {
+                        val detail = async { repository.accountPayable(accountId) }
+                        val accounts = async { repository.accountsPayable() }
+                        detail.await() to accounts.await()
+                    }
+                }
+            }.onSuccess { (detail, accounts) ->
+                _uiState.update {
+                    it.copy(
+                        isAccountPayableSaving = false,
+                        selectedAccountPayable = detail,
+                        accountsPayable = accounts,
+                        successMessage = "Pago registrado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isAccountPayableSaving = false,
+                        errorMessage = throwable.userMessage(),
+                    )
+                }
+            }
+        }
+    }
+
+    fun createCreditor(input: CreditorInput) {
+        if (!uiState.value.canManageAccountsPayable || uiState.value.isAccountPayableSaving) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isAccountPayableSaving = true,
+                    errorMessage = null,
+                    successMessage = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.createCreditor(input) }
+            }.onSuccess { creditor ->
+                _uiState.update {
+                    it.copy(
+                        isAccountPayableSaving = false,
+                        creditors = (listOf(creditor) + it.creditors).distinctBy { item -> item.id },
+                        successMessage = "Acreedor creado.",
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isAccountPayableSaving = false,
+                        errorMessage = throwable.userMessage(),
+                    )
+                }
             }
         }
     }

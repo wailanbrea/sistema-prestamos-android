@@ -53,6 +53,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -133,6 +134,7 @@ internal fun LoanDetailScreen(
     var showPaymentDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var actionsExpanded by remember { mutableStateOf(false) }
+    var awaitingPayment by remember { mutableStateOf(false) }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -153,12 +155,23 @@ internal fun LoanDetailScreen(
             loan.status.trim().lowercase() in setOf("active", "late")
 
     if (showPaymentDialog && onRegisterPayment != null) {
+        // Mantener el diálogo abierto mostrando "Procesando..." mientras el cobro corre
+        // (puede tardar varios segundos) y cerrarlo al terminar: en éxito la app navega
+        // al recibo; en error el diálogo se cierra y el mensaje queda visible. Antes se
+        // cerraba al instante y parecía que "no pasaba nada".
+        LaunchedEffect(isPaymentLoading) {
+            if (isPaymentLoading) {
+                awaitingPayment = true
+            } else if (awaitingPayment) {
+                awaitingPayment = false
+                showPaymentDialog = false
+            }
+        }
         RegisterPaymentDialog(
             loan = loan,
             isLoading = isPaymentLoading,
-            onDismiss = { showPaymentDialog = false },
+            onDismiss = { if (!isPaymentLoading) showPaymentDialog = false },
             onConfirm = { amountText, methodApiValue, allocationModeApiValue ->
-                showPaymentDialog = false
                 onRegisterPayment(loan.id, amountText, methodApiValue, allocationModeApiValue, null)
             },
         )
