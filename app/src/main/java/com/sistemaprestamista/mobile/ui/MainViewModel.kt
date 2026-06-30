@@ -345,6 +345,41 @@ class MainViewModel(
         }
     }
 
+    fun waiveInstallmentLateFee(loanId: Long, installmentId: Long) {
+        if (!uiState.value.canEditLoan || uiState.value.isDetailLoading) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDetailLoading = true, errorMessage = null, successMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.adminWaiveInstallmentLateFee(loanId, installmentId)
+                }
+            }.onSuccess { updatedInstallment ->
+                _uiState.update { current ->
+                    val updatedLoanDetail = current.selectedLoanDetail?.takeIf { it.summary.id == loanId }?.let { detail ->
+                        detail.copy(
+                            installments = detail.installments.map { installment ->
+                                if (installment.id == installmentId) updatedInstallment else installment
+                            },
+                        )
+                    }
+
+                    current.copy(
+                        isDetailLoading = false,
+                        selectedLoanDetail = updatedLoanDetail ?: current.selectedLoanDetail,
+                        selectedInstallmentDetail = current.selectedInstallmentDetail
+                            ?.takeIf { it.summary.id == installmentId }
+                            ?.copy(summary = updatedInstallment)
+                            ?: current.selectedInstallmentDetail,
+                        successMessage = "Mora eliminada correctamente.",
+                    )
+                }
+                refreshAdminLoanAfterPayment(loanId)
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isDetailLoading = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
     /** Carga el contrato digital más reciente del préstamo (o null) para mostrar su estado. */
     fun loadLoanContract(loanId: Long) {
         if (!uiState.value.canManageContracts || uiState.value.isContractLoading) return

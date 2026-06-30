@@ -414,6 +414,22 @@ class PrestamistaApiClient(
         return parsePayment(json.getJSONObject("data"))
     }
 
+    fun adminWaiveInstallmentLateFee(
+        token: String,
+        loanId: Long,
+        installmentId: Long,
+        reason: String = "Eliminada desde Android",
+    ): InstallmentSummary {
+        val json = request(
+            path = "admin/loans/$loanId/installments/$installmentId/late-fee",
+            method = "DELETE",
+            token = token,
+            body = JSONObject().put("reason", reason),
+        )
+
+        return parseInstallment(json.getJSONObject("data"))
+    }
+
     fun adminCollectors(token: String): List<CollectorOption> {
         val json = request(path = "admin/collectors", method = "GET", token = token)
         return json.getJSONArray("data").mapObjects { obj ->

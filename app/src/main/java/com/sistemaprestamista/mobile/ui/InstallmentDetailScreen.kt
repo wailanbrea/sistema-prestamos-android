@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.AttachMoney
@@ -49,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -88,6 +90,8 @@ internal fun InstallmentDetailScreen(
     detail: InstallmentDetail?,
     fallbackInstallment: InstallmentSummary?,
     isLoading: Boolean,
+    canWaiveLateFee: Boolean,
+    onWaiveLateFee: (Long, Long) -> Unit,
     onRegisterPayment: (Long, String, String, String, Long?, Double?) -> Unit,
 ) {
     val installment = detail?.summary ?: fallbackInstallment
@@ -119,6 +123,10 @@ internal fun InstallmentDetailScreen(
     }
 
     var showConfirmation by remember(installment.id) {
+        mutableStateOf(false)
+    }
+
+    var showWaiveLateFeeConfirmation by remember(installment.id) {
         mutableStateOf(false)
     }
 
@@ -177,6 +185,8 @@ internal fun InstallmentDetailScreen(
             interest = currency.format(installment.pendingInterest),
             lateFee = currency.format(installment.pendingLateFee),
             pending = currency.format(installment.pendingAmount),
+            canWaiveLateFee = canWaiveLateFee && installment.pendingLateFee > 0 && !isLoading,
+            onLateFeeLongPress = { showWaiveLateFeeConfirmation = true },
         )
 
         PaymentRegisterCard(
@@ -315,6 +325,36 @@ internal fun InstallmentDetailScreen(
             },
         )
     }
+
+    if (showWaiveLateFeeConfirmation) {
+        AlertDialog(
+            onDismissRequest = { if (!isLoading) showWaiveLateFeeConfirmation = false },
+            title = { Text("Eliminar mora") },
+            text = {
+                Text("Se pondrá en cero la mora pendiente de la cuota #${installment.installmentNumber}. Esta acción no elimina pagos ya registrados.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showWaiveLateFeeConfirmation = false
+                        onWaiveLateFee(installment.loanId, installment.id)
+                    },
+                    enabled = !isLoading,
+                    colors = ButtonDefaults.buttonColors(containerColor = Error),
+                ) {
+                    Text("Eliminar mora")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showWaiveLateFeeConfirmation = false },
+                    enabled = !isLoading,
+                ) {
+                    Text("Cancelar")
+                }
+            },
+        )
+    }
 }
 
 @Composable
@@ -433,6 +473,8 @@ private fun InstallmentMetricsGrid(
     interest: String,
     lateFee: String,
     pending: String,
+    canWaiveLateFee: Boolean,
+    onLateFeeLongPress: () -> Unit,
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -464,6 +506,7 @@ private fun InstallmentMetricsGrid(
                 title = "Mora pendiente",
                 value = lateFee,
                 valueColor = Error,
+                onLongPress = if (canWaiveLateFee) onLateFeeLongPress else null,
                 modifier = Modifier.weight(1f),
             )
 
@@ -487,9 +530,20 @@ private fun InstallmentMetricCard(
     modifier: Modifier = Modifier,
     containerColor: Color = CardBackground,
     labelColor: Color = TextVariant,
+    onLongPress: (() -> Unit)? = null,
 ) {
     Card(
-        modifier = modifier.height(98.dp),
+        modifier = modifier
+            .height(98.dp)
+            .then(
+                if (onLongPress != null) {
+                    Modifier.pointerInput(onLongPress) {
+                        detectTapGestures(onLongPress = { onLongPress() })
+                    }
+                } else {
+                    Modifier
+                },
+            ),
         shape = RoundedCornerShape(18.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),

@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AttachMoney
@@ -62,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -110,6 +112,7 @@ internal fun LoanDetailScreen(
     fallbackLoan: LoanSummary?,
     onOpenInstallment: (Long) -> Unit,
     onRegisterPayment: ((Long, String, String, String, Long?, Double?) -> Unit)? = null,
+    onWaiveInstallmentLateFee: ((Long) -> Unit)? = null,
     isPaymentLoading: Boolean = false,
     onGenerateDocument: ((Long, String) -> Unit)? = null,
     isDocumentGenerating: Boolean = false,
@@ -265,6 +268,8 @@ internal fun LoanDetailScreen(
                     installment = installment,
                     formatAmount = { currency.format(it) },
                     onOpenInstallment = onOpenInstallment,
+                    onWaiveLateFee = onWaiveInstallmentLateFee,
+                    isWaivingLateFee = isLoading,
                 )
             }
         }
@@ -1344,10 +1349,14 @@ private fun LoanInstallmentCard(
     installment: InstallmentSummary,
     formatAmount: (Double) -> String,
     onOpenInstallment: (Long) -> Unit,
+    onWaiveLateFee: ((Long) -> Unit)?,
+    isWaivingLateFee: Boolean,
 ) {
     val isLate = installment.daysLate > 0
     val installmentNumber = installment.installmentNumber ?: 0
     val pendingAmount = formatAmount(installment.pendingAmount)
+    val canWaiveLateFee = onWaiveLateFee != null && installment.pendingLateFee > 0 && installment.status !in setOf("paid", "cancelled")
+    var showWaiveLateFeeConfirmation by remember(installment.id) { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1404,6 +1413,13 @@ private fun LoanInstallmentCard(
 
                     Text(
                         text = "Capital ${formatAmount(installment.pendingPrincipal)} · Interés ${formatAmount(installment.pendingInterest)} · Mora ${formatAmount(installment.pendingLateFee)}",
+                        modifier = if (canWaiveLateFee) {
+                            Modifier.pointerInput(installment.id) {
+                                detectTapGestures(onLongPress = { showWaiveLateFeeConfirmation = true })
+                            }
+                        } else {
+                            Modifier
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = TextVariant,
                         maxLines = 1,
@@ -1444,6 +1460,34 @@ private fun LoanInstallmentCard(
                 }
             }
         }
+    }
+
+    if (showWaiveLateFeeConfirmation) {
+        AlertDialog(
+            onDismissRequest = { if (!isWaivingLateFee) showWaiveLateFeeConfirmation = false },
+            title = { Text("Eliminar mora") },
+            text = { Text("Se pondrá en cero la mora pendiente de la cuota #$installmentNumber.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showWaiveLateFeeConfirmation = false
+                        onWaiveLateFee?.invoke(installment.id)
+                    },
+                    enabled = !isWaivingLateFee,
+                    colors = ButtonDefaults.buttonColors(containerColor = Error),
+                ) {
+                    Text("Eliminar mora")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showWaiveLateFeeConfirmation = false },
+                    enabled = !isWaivingLateFee,
+                ) {
+                    Text("Cancelar")
+                }
+            },
+        )
     }
 }
 

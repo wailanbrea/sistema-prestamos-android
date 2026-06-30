@@ -138,6 +138,7 @@ fun PrestamistaApp(
         onLoadAdminLoanDetail = viewModel::loadAdminLoanDetail,
         onLoadMoreAdminLoans = viewModel::loadMoreAdminLoans,
         onRegisterAdminPayment = viewModel::registerAdminPayment,
+        onWaiveInstallmentLateFee = viewModel::waiveInstallmentLateFee,
         onGenerateLoanDocument = viewModel::generateLoanDocument,
         onSendAccountStatement = viewModel::sendAccountStatement,
         onConsumePendingShareUrl = viewModel::consumePendingShareUrl,
@@ -204,6 +205,7 @@ private fun AuthenticatedShell(
     onLoadAdminLoanDetail: (Long) -> Unit,
     onLoadMoreAdminLoans: () -> Unit,
     onRegisterAdminPayment: (Long, String, String, String, Long?, Double?) -> Unit,
+    onWaiveInstallmentLateFee: (Long, Long) -> Unit,
     onGenerateLoanDocument: (Long, String) -> Unit,
     onSendAccountStatement: (Long) -> Unit,
     onConsumePendingShareUrl: () -> Unit,
@@ -796,6 +798,9 @@ private fun AuthenticatedShell(
                             }
                         } else null,
                         isPaymentLoading = state.isPaymentSaving,
+                        onWaiveInstallmentLateFee = if (state.canEditLoan && loanId != null) {
+                            { installmentId -> onWaiveInstallmentLateFee(loanId, installmentId) }
+                        } else null,
                         onGenerateDocument = if (state.canGenerateDocuments) onGenerateLoanDocument else null,
                         isDocumentGenerating = state.isDocumentGenerating,
                         contract = state.selectedLoanContract?.takeIf { state.selectedLoanDetail?.summary?.id == loanId },
@@ -981,6 +986,9 @@ private fun AuthenticatedShell(
                         onOpenInstallment = { installmentId ->
                             navController.navigate(AppRoutes.installmentDetail(installmentId))
                         },
+                        onWaiveInstallmentLateFee = if (state.canEditLoan && loanId != null) {
+                            { installmentId -> onWaiveInstallmentLateFee(loanId, installmentId) }
+                        } else null,
                         onGenerateDocument = if (state.canGenerateDocuments) onGenerateLoanDocument else null,
                         isDocumentGenerating = state.isDocumentGenerating,
                         onSendAccountStatement = if (state.canGenerateDocuments && loanId != null) {
@@ -1008,7 +1016,9 @@ private fun AuthenticatedShell(
                         detail = state.selectedInstallmentDetail
                             ?.takeIf { it.summary.id == installmentId },
                         fallbackInstallment = fallbackInstallment,
-                        isLoading = state.isLoading,
+                        isLoading = state.isLoading || state.isDetailLoading,
+                        canWaiveLateFee = state.canEditLoan,
+                        onWaiveLateFee = onWaiveInstallmentLateFee,
                         onRegisterPayment = if (state.canRegisterAdminPayment) {
                             { loanId, amountText, method, allocationMode, targetInstallmentId, capitalPrepaymentAmount ->
                                 onRegisterAdminPayment(loanId, amountText, method, allocationMode, targetInstallmentId, capitalPrepaymentAmount)

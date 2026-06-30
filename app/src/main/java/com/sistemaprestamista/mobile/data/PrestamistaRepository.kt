@@ -298,6 +298,14 @@ class PrestamistaRepository(
         )
     }
 
+    fun adminWaiveInstallmentLateFee(loanId: Long, installmentId: Long): InstallmentSummary {
+        return apiClient.adminWaiveInstallmentLateFee(
+            token = requiredToken(),
+            loanId = loanId,
+            installmentId = installmentId,
+        )
+    }
+
     fun generateLoanDocument(loanId: Long, documentType: String, viaAdmin: Boolean): com.sistemaprestamista.mobile.data.model.LoanDocument =
         apiClient.generateLoanDocument(requiredToken(), loanId, documentType, viaAdmin)
 
