@@ -794,7 +794,7 @@ private fun computeBreakdown(
 }
 
 @Composable
-private fun CapitalPrepaymentSummary(
+internal fun CapitalPrepaymentSummary(
     cuota: Double,
     capital: Double,
 ) {

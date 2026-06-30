@@ -59,6 +59,7 @@ import com.sistemaprestamista.mobile.data.model.PaymentMethod
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
 import java.util.Locale
 import kotlin.math.min
+import kotlin.math.round
 
 private val ScreenBackground = Color(0xFFF4F7FB)
 private val CardBackground = Color(0xFFFFFFFF)
@@ -79,6 +80,8 @@ private val ErrorContainer = Color(0xFFFFDAD6)
 private val ErrorText = Color(0xFF93000A)
 private val Success = Color(0xFF005236)
 private val SuccessSoft = Color(0xFF6FFBBE)
+
+private fun roundCurrency(value: Double): Double = round(value * 100.0) / 100.0
 
 @Composable
 internal fun InstallmentDetailScreen(
@@ -103,6 +106,10 @@ internal fun InstallmentDetailScreen(
         mutableStateOf("%.2f".format(Locale.US, installment.pendingAmount))
     }
 
+    var capitalText by remember(installment.id) {
+        mutableStateOf("")
+    }
+
     var paymentMethod by remember(installment.id) {
         mutableStateOf(PaymentMethod.Cash)
     }
@@ -116,15 +123,34 @@ internal fun InstallmentDetailScreen(
     }
 
     val currency = rememberCurrency()
-    val parsedAmount = amount.toDoubleOrNull()
     val isLate = installment.daysLate > 0 && installment.status.trim().lowercase() !in setOf("paid", "cancelled")
     val canCollectInstallment = installment.status.trim().lowercase() != "cancelled" && installment.hasPendingCharge
+    val isCapitalPrepaymentMode = allocationMode == AllocationMode.CurrentPlusCapital
+    val currentChargeAmount = if (installment.pendingPrincipal <= 0.01 && installment.pendingInterest > 0) {
+        roundCurrency(installment.pendingLateFee + installment.pendingInterest)
+    } else {
+        installment.pendingAmount
+    }
+    val parsedCapital = capitalText.toDoubleOrNull()
+    val parsedAmount = if (isCapitalPrepaymentMode) {
+        parsedCapital?.let { roundCurrency(currentChargeAmount + it) }
+    } else {
+        amount.toDoubleOrNull()
+    }
+
+    val capitalError = when {
+        !isCapitalPrepaymentMode -> null
+        capitalText.isBlank() || parsedCapital == null -> "Indica el abono o saldo a capital."
+        parsedCapital <= 0 -> "El abono debe ser mayor que cero."
+        else -> null
+    }
 
     val amountError = when {
+        !canCollectInstallment -> "Esta cuota no tiene pendiente cobrable."
+        isCapitalPrepaymentMode -> capitalError
         amount.isBlank() -> "Indica el monto."
         parsedAmount == null -> "Monto inválido."
         parsedAmount <= 0 -> "Debe ser mayor que cero."
-        !canCollectInstallment -> "Esta cuota no tiene pendiente cobrable."
         parsedAmount > installment.pendingAmount -> "No puede exceder ${currency.format(installment.pendingAmount)}."
         else -> null
     }
@@ -161,8 +187,13 @@ internal fun InstallmentDetailScreen(
             pendingPrincipal = installment.pendingPrincipal,
             pendingInterest = installment.pendingInterest,
             pendingLateFee = installment.pendingLateFee,
+            capitalPrepaymentText = capitalText,
+            capitalError = capitalError,
+            currentChargeAmount = currentChargeAmount,
+            totalCapitalPayment = parsedAmount,
             isLoading = isLoading,
             onAmountChange = { amount = it },
+            onCapitalPrepaymentChange = { capitalText = it },
             onPaymentMethodChange = { paymentMethod = it },
             onAllocationModeChange = { allocationMode = it },
             onRegisterClick = { showConfirmation = true },
@@ -275,11 +306,11 @@ internal fun InstallmentDetailScreen(
                 showConfirmation = false
                 onRegisterPayment(
                     installment.loanId,
-                    amount,
+                    "%.2f".format(Locale.US, parsedAmount),
                     paymentMethod.apiValue,
                     allocationMode.apiValue,
                     installment.id,
-                    null,
+                    parsedCapital?.takeIf { isCapitalPrepaymentMode },
                 )
             },
         )
@@ -502,13 +533,20 @@ private fun PaymentRegisterCard(
     pendingPrincipal: Double,
     pendingInterest: Double,
     pendingLateFee: Double,
+    capitalPrepaymentText: String,
+    capitalError: String?,
+    currentChargeAmount: Double,
+    totalCapitalPayment: Double?,
     isLoading: Boolean,
     onAmountChange: (String) -> Unit,
+    onCapitalPrepaymentChange: (String) -> Unit,
     onPaymentMethodChange: (PaymentMethod) -> Unit,
     onAllocationModeChange: (AllocationMode) -> Unit,
     onRegisterClick: () -> Unit,
 ) {
     val parsedAmount = amount.toDoubleOrNull()
+    val isCapitalPrepaymentMode = allocationMode == AllocationMode.CurrentPlusCapital
+    val currency = rememberCurrency()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -532,21 +570,31 @@ private fun PaymentRegisterCard(
                 )
 
                 OutlinedTextField(
-                    value = amount,
-                    onValueChange = onAmountChange,
+                    value = if (isCapitalPrepaymentMode) "%.2f".format(Locale.US, currentChargeAmount) else amount,
+                    onValueChange = { if (!isCapitalPrepaymentMode) onAmountChange(it) },
                     modifier = Modifier.fillMaxWidth(),
+                    enabled = !isCapitalPrepaymentMode,
                     singleLine = true,
-                    isError = amountError != null,
+                    isError = amountError != null && !isCapitalPrepaymentMode,
                     supportingText = {
-                        amountError?.let {
-                            Text(it)
+                        if (isCapitalPrepaymentMode) {
+                            Text("Se cobra solo la mora/interés actual de la cuota seleccionada.")
+                        } else {
+                            amountError?.let {
+                                Text(it)
+                            }
+                        }
+                    },
+                    label = {
+                        if (isCapitalPrepaymentMode) {
+                            Text("Interés actual de la cuota")
                         }
                     },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Outlined.AttachMoney,
                             contentDescription = null,
-                            tint = if (amountError != null) Error else Primary,
+                            tint = if (amountError != null && !isCapitalPrepaymentMode) Error else Primary,
                         )
                     },
                     textStyle = MaterialTheme.typography.headlineMedium.copy(
@@ -556,6 +604,43 @@ private fun PaymentRegisterCard(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     shape = RoundedCornerShape(16.dp),
                 )
+
+                if (isCapitalPrepaymentMode) {
+                    OutlinedTextField(
+                        value = capitalPrepaymentText,
+                        onValueChange = onCapitalPrepaymentChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        isError = capitalError != null,
+                        supportingText = {
+                            Text(capitalError ?: "Para saldar, escribe el capital pendiente completo.")
+                        },
+                        label = { Text("Abono o saldo a capital") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.AttachMoney,
+                                contentDescription = null,
+                                tint = if (capitalError != null) Error else Primary,
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(16.dp),
+                    )
+
+                    CapitalPrepaymentSummary(
+                        cuota = currentChargeAmount,
+                        capital = capitalPrepaymentText.toDoubleOrNull()?.takeIf { it > 0 } ?: 0.0,
+                    )
+
+                    totalCapitalPayment?.let {
+                        Text(
+                            text = "Total a cobrar: ${currency.format(it)}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Primary,
+                        )
+                    }
+                }
             }
 
             InstallmentPaymentMethodSelector(
@@ -566,10 +651,11 @@ private fun PaymentRegisterCard(
             AllocationModeSelector(
                 selected = allocationMode,
                 hasLateFee = pendingLateFee > 0,
+                includeCapitalPrepayment = true,
                 onSelected = onAllocationModeChange,
             )
 
-            parsedAmount?.let { amt ->
+            if (!isCapitalPrepaymentMode) parsedAmount?.let { amt ->
                 PaymentBreakdownCard(
                     amount = amt,
                     mode = allocationMode,

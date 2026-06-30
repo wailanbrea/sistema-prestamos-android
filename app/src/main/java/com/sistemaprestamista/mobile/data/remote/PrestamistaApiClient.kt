@@ -321,6 +321,9 @@ class PrestamistaApiClient(
             .put("allocation_mode", allocationMode)
         targetInstallmentId?.let { payload.put("target_installment_id", it) }
         capitalPrepaymentAmount?.let { payload.put("capital_prepayment_amount", it) }
+        if (allocationMode == "current_plus_capital") {
+            payload.put("excess_action", "prepayment")
+        }
 
         val json = request(
             path = "collector/payments",
@@ -386,6 +389,7 @@ class PrestamistaApiClient(
         mobileUuid: String,
         allocationMode: String = "auto",
         targetInstallmentId: Long? = null,
+        capitalPrepaymentAmount: Double? = null,
     ): PaymentReceipt {
         val payload = JSONObject()
             .put("loan_id", loanId)
@@ -395,6 +399,10 @@ class PrestamistaApiClient(
             .put("mobile_uuid", mobileUuid)
             .put("allocation_mode", allocationMode)
         targetInstallmentId?.let { payload.put("target_installment_id", it) }
+        capitalPrepaymentAmount?.let { payload.put("capital_prepayment_amount", it) }
+        if (allocationMode == "current_plus_capital") {
+            payload.put("excess_action", "prepayment")
+        }
 
         val json = request(
             path = "admin/payments",

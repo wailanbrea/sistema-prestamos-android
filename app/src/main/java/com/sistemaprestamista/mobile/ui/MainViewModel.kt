@@ -250,7 +250,7 @@ class MainViewModel(
      * cobrador, pero contra admin/payments y sin cola offline. Al confirmar, muestra
      * el recibo y refresca el detalle del préstamo en un paso aparte.
      */
-    fun registerAdminPayment(loanId: Long, amountText: String, paymentMethod: String, allocationMode: String = "auto", targetInstallmentId: Long? = null) {
+    fun registerAdminPayment(loanId: Long, amountText: String, paymentMethod: String, allocationMode: String = "auto", targetInstallmentId: Long? = null, capitalPrepaymentAmount: Double? = null) {
         val amount = amountText.toDoubleOrNull()
         if (amount == null || amount <= 0) {
             _uiState.update { it.copy(errorMessage = "El monto debe ser mayor que cero.") }
@@ -260,9 +260,13 @@ class MainViewModel(
             _uiState.update { it.copy(errorMessage = "Selecciona un metodo de pago.") }
             return
         }
+        if (allocationMode == "current_plus_capital" && (capitalPrepaymentAmount == null || capitalPrepaymentAmount <= 0)) {
+            _uiState.update { it.copy(errorMessage = "Indica cuanto se abonara al capital.") }
+            return
+        }
 
         val paymentDate = LocalDate.now().toString()
-        val attemptKey = "admin|$loanId|$amount|$paymentDate|$allocationMode|${targetInstallmentId ?: 0}"
+        val attemptKey = "admin|$loanId|$amount|$paymentDate|$allocationMode|${targetInstallmentId ?: 0}|${capitalPrepaymentAmount ?: 0}"
         val mobileUuid = paymentUuidByAttempt.getOrPut(attemptKey) { UUID.randomUUID().toString() }
 
         viewModelScope.launch {
@@ -276,6 +280,7 @@ class MainViewModel(
                         paymentMethod = paymentMethod,
                         allocationMode = allocationMode,
                         targetInstallmentId = targetInstallmentId,
+                        capitalPrepaymentAmount = capitalPrepaymentAmount,
                         mobileUuid = mobileUuid,
                     )
                 }

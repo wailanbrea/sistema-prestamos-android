@@ -79,7 +79,7 @@ internal fun LoanEditScreen(
 ) {
     androidx.compose.runtime.LaunchedEffect(Unit) { onLoadCollectors() }
 
-    val canEditFinancials = detail.financialSummary.paymentsTotal == 0
+    val hasPayments = detail.financialSummary.paymentsTotal > 0
 
     // Always-editable fields
     var selectedCollector by remember {
@@ -120,13 +120,13 @@ internal fun LoanEditScreen(
         if (found != null) selectedCollector = found
     }
 
-    val canSubmit = !isSaving && (!canEditFinancials || (
+    val canSubmit = !isSaving && (
         principalAmount.toDoubleOrNull()?.let { it > 0 } == true &&
         interestRate.toDoubleOrNull()?.let { it >= 0 } == true &&
         termQuantity.toIntOrNull()?.let { it > 0 } == true &&
         startDate.isNotBlank() &&
         firstPaymentDate.isNotBlank()
-    ))
+    )
 
     Column(
         modifier = Modifier
@@ -137,7 +137,7 @@ internal fun LoanEditScreen(
             .imePadding(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        if (canEditFinancials) {
+        if (!hasPayments) {
             androidx.compose.material3.Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -146,7 +146,7 @@ internal fun LoanEditScreen(
                 ),
             ) {
                 Text(
-                    text = "Este préstamo no tiene pagos registrados — puedes modificar todos los campos.",
+                    text = "Este prestamo no tiene pagos registrados; puedes modificar todos los campos.",
                     modifier = Modifier.padding(14.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFF1A4F8B),
@@ -161,7 +161,7 @@ internal fun LoanEditScreen(
                 ),
             ) {
                 Text(
-                    text = "El préstamo ya tiene pagos — solo puedes editar cobrador, moneda, garantía, notas y prepago.",
+                    text = "El prestamo ya tiene pagos; las cuotas cobradas se conservan y los cambios financieros se recalculan desde las cuotas futuras sin pagos.",
                     modifier = Modifier.padding(14.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = Color(0xFFE65100),
@@ -204,7 +204,7 @@ internal fun LoanEditScreen(
             )
         }
 
-        FormSectionCard(title = "Configuración") {
+        FormSectionCard(title = "Configuracion") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -223,38 +223,35 @@ internal fun LoanEditScreen(
             }
         }
 
-        if (canEditFinancials) {
-            FormSectionCard(title = "Condiciones del préstamo") {
-                FormField(value = principalAmount, onValueChange = { principalAmount = it }, label = "Monto principal *", keyboardType = KeyboardType.Decimal)
-                FormField(value = interestRate, onValueChange = { interestRate = it }, label = "Tasa de interés (%) *", keyboardType = KeyboardType.Decimal)
-                FormField(value = termQuantity, onValueChange = { termQuantity = it }, label = "Número de cuotas *", keyboardType = KeyboardType.Number)
+        FormSectionCard(title = "Condiciones del prestamo") {
+            FormField(value = principalAmount, onValueChange = { principalAmount = it }, label = "Monto principal *", keyboardType = KeyboardType.Decimal)
+            FormField(value = interestRate, onValueChange = { interestRate = it }, label = "Tasa de interes (%) *", keyboardType = KeyboardType.Decimal)
+            FormField(value = termQuantity, onValueChange = { termQuantity = it }, label = "Numero de cuotas *", keyboardType = KeyboardType.Number)
 
-                OptionSelector(
-                    label = "Tipo de interés",
-                    options = InterestTypes,
-                    selected = interestType,
-                    onSelected = { interestType = it },
-                )
-                OptionSelector(
-                    label = "Frecuencia de pago",
-                    options = PaymentFrequencies,
-                    selected = paymentFrequency,
-                    onSelected = { paymentFrequency = it },
-                )
-                OptionSelector(
-                    label = "Método de cálculo",
-                    options = CalculationMethods,
-                    selected = calculationMethod,
-                    onSelected = { calculationMethod = it },
-                )
-            }
-
-            FormSectionCard(title = "Fechas") {
-                FormField(value = startDate, onValueChange = { startDate = it }, label = "Fecha de inicio * (YYYY-MM-DD)")
-                FormField(value = firstPaymentDate, onValueChange = { firstPaymentDate = it }, label = "Fecha primer pago * (YYYY-MM-DD)")
-            }
+            OptionSelector(
+                label = "Tipo de interes",
+                options = InterestTypes,
+                selected = interestType,
+                onSelected = { interestType = it },
+            )
+            OptionSelector(
+                label = "Frecuencia de pago",
+                options = PaymentFrequencies,
+                selected = paymentFrequency,
+                onSelected = { paymentFrequency = it },
+            )
+            OptionSelector(
+                label = "Metodo de calculo",
+                options = CalculationMethods,
+                selected = calculationMethod,
+                onSelected = { calculationMethod = it },
+            )
         }
 
+        FormSectionCard(title = "Fechas") {
+            FormField(value = startDate, onValueChange = { startDate = it }, label = "Fecha de inicio * (YYYY-MM-DD)")
+            FormField(value = firstPaymentDate, onValueChange = { firstPaymentDate = it }, label = "Fecha primer pago * (YYYY-MM-DD)")
+        }
         FormSectionCard(title = "Mora") {
             OptionSelector(
                 label = "Tipo de mora",
@@ -281,16 +278,16 @@ internal fun LoanEditScreen(
                         guaranteeDescription = guaranteeDescription.trim().takeIf { it.isNotBlank() },
                         notes = notes.trim().takeIf { it.isNotBlank() },
                         allowsCapitalPrepayment = allowsCapitalPrepayment,
-                        principalAmount = if (canEditFinancials) principalAmount.toDoubleOrNull() else null,
-                        interestRate = if (canEditFinancials) interestRate.toDoubleOrNull() else null,
-                        interestType = if (canEditFinancials) interestType.first else null,
-                        paymentFrequency = if (canEditFinancials) paymentFrequency.first else null,
-                        calculationMethod = if (canEditFinancials) calculationMethod.first else null,
-                        termQuantity = if (canEditFinancials) termQuantity.toIntOrNull() else null,
+                        principalAmount = principalAmount.toDoubleOrNull(),
+                        interestRate = interestRate.toDoubleOrNull(),
+                        interestType = interestType.first,
+                        paymentFrequency = paymentFrequency.first,
+                        calculationMethod = calculationMethod.first,
+                        termQuantity = termQuantity.toIntOrNull(),
                         lateFeeType = lateFeeType.first,
                         lateFeeValue = if (lateFeeType.first != "none") lateFeeValue.toDoubleOrNull() else 0.0,
-                        startDate = if (canEditFinancials) startDate.trim().takeIf { it.isNotBlank() } else null,
-                        firstPaymentDate = if (canEditFinancials) firstPaymentDate.trim().takeIf { it.isNotBlank() } else null,
+                        startDate = startDate.trim().takeIf { it.isNotBlank() },
+                        firstPaymentDate = firstPaymentDate.trim().takeIf { it.isNotBlank() },
                     ),
                 )
             },

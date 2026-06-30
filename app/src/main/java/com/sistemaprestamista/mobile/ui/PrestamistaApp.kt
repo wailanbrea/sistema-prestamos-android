@@ -203,7 +203,7 @@ private fun AuthenticatedShell(
     onLoadAdminClientDetail: (Long) -> Unit,
     onLoadAdminLoanDetail: (Long) -> Unit,
     onLoadMoreAdminLoans: () -> Unit,
-    onRegisterAdminPayment: (Long, String, String, String, Long?) -> Unit,
+    onRegisterAdminPayment: (Long, String, String, String, Long?, Double?) -> Unit,
     onGenerateLoanDocument: (Long, String) -> Unit,
     onSendAccountStatement: (Long) -> Unit,
     onConsumePendingShareUrl: () -> Unit,
@@ -790,7 +790,11 @@ private fun AuthenticatedShell(
                             navController.navigate(AppRoutes.installmentDetail(installmentId))
                         },
                         // FAB "Registrar pago": solo para back-office con permiso de cobro.
-                        onRegisterPayment = if (state.canRegisterAdminPayment) onRegisterAdminPayment else null,
+                        onRegisterPayment = if (state.canRegisterAdminPayment) {
+                            { loanId, amountText, method, allocationMode, targetInstallmentId ->
+                                onRegisterAdminPayment(loanId, amountText, method, allocationMode, targetInstallmentId, null)
+                            }
+                        } else null,
                         isPaymentLoading = state.isPaymentSaving,
                         onGenerateDocument = if (state.canGenerateDocuments) onGenerateLoanDocument else null,
                         isDocumentGenerating = state.isDocumentGenerating,
@@ -1006,8 +1010,8 @@ private fun AuthenticatedShell(
                         fallbackInstallment = fallbackInstallment,
                         isLoading = state.isLoading,
                         onRegisterPayment = if (state.canRegisterAdminPayment) {
-                            { loanId, amountText, method, allocationMode, targetInstallmentId, _ ->
-                                onRegisterAdminPayment(loanId, amountText, method, allocationMode, targetInstallmentId)
+                            { loanId, amountText, method, allocationMode, targetInstallmentId, capitalPrepaymentAmount ->
+                                onRegisterAdminPayment(loanId, amountText, method, allocationMode, targetInstallmentId, capitalPrepaymentAmount)
                             }
                         } else {
                             onRegisterPayment

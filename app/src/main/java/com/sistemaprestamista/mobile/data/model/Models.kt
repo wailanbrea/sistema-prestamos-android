@@ -698,7 +698,8 @@ data class UpdateLoanInput(
     val guaranteeDescription: String?,
     val notes: String?,
     val allowsCapitalPrepayment: Boolean,
-    // Financial fields — only sent when the loan has no valid payments yet
+    // Financial fields. If there are payments, the backend preserves paid installments
+    // and recalculates only future unpaid installments.
     val principalAmount: Double? = null,
     val interestRate: Double? = null,
     val interestType: String? = null,
@@ -734,7 +735,7 @@ enum class AllocationMode(
     val shortLabel: String,
 ) {
     Auto("auto", "Cap. + Int. + Mora", "Todo"),
-    PrincipalAndInterest("principal_and_interest", "Capital + Interés", "Cap. + Int."),
+    PrincipalAndInterest("principal_and_interest", "Pagar cuota programada", "Cuota"),
     PrincipalOnly("principal_only", "Solo capital", "Capital"),
     InterestOnly("interest_only", "Solo interés", "Interés"),
 
@@ -743,5 +744,5 @@ enum class AllocationMode(
      * capital (campo `capital_prepayment_amount`). El sobrante NO se reparte en
      * cuotas futuras.
      */
-    CurrentPlusCapital("current_plus_capital", "Cuota + abono a capital", "Cuota+Cap."),
+    CurrentPlusCapital("current_plus_capital", "Interés actual + abono a capital", "Int.+Cap."),
 }

@@ -282,6 +282,7 @@ class PrestamistaRepository(
         paymentMethod: String,
         allocationMode: String,
         targetInstallmentId: Long?,
+        capitalPrepaymentAmount: Double?,
         mobileUuid: String,
     ): PaymentReceipt {
         return apiClient.adminRegisterPayment(
@@ -293,6 +294,7 @@ class PrestamistaRepository(
             mobileUuid = mobileUuid,
             allocationMode = allocationMode,
             targetInstallmentId = targetInstallmentId,
+            capitalPrepaymentAmount = capitalPrepaymentAmount,
         )
     }
 
