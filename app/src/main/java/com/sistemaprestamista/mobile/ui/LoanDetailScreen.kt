@@ -95,13 +95,21 @@ private val Success = Color(0xFF008A5C)
 private val SuccessSoft = Color(0xFFE7F5ED)
 private val Orange = Color(0xFFEA580C)
 
+private fun paymentInput(value: Double): String {
+    return when {
+        value <= 0 -> ""
+        value % 1.0 == 0.0 -> value.toLong().toString()
+        else -> "%.2f".format(java.util.Locale.US, value)
+    }
+}
+
 @Composable
 internal fun LoanDetailScreen(
     detail: LoanDetail?,
     isLoading: Boolean,
     fallbackLoan: LoanSummary?,
     onOpenInstallment: (Long) -> Unit,
-    onRegisterPayment: ((Long, String, String, String, Long?) -> Unit)? = null,
+    onRegisterPayment: ((Long, String, String, String, Long?, Double?) -> Unit)? = null,
     isPaymentLoading: Boolean = false,
     onGenerateDocument: ((Long, String) -> Unit)? = null,
     isDocumentGenerating: Boolean = false,
@@ -175,8 +183,8 @@ internal fun LoanDetailScreen(
             detail = detail,
             isLoading = isPaymentLoading,
             onDismiss = { if (!isPaymentLoading) showPaymentDialog = false },
-            onConfirm = { amountText, methodApiValue, allocationModeApiValue ->
-                onRegisterPayment(loan.id, amountText, methodApiValue, allocationModeApiValue, null)
+            onConfirm = { amountText, methodApiValue, allocationModeApiValue, targetInstallmentId, capitalPrepaymentAmount ->
+                onRegisterPayment(loan.id, amountText, methodApiValue, allocationModeApiValue, targetInstallmentId, capitalPrepaymentAmount)
             },
         )
     }
@@ -738,7 +746,7 @@ private fun RegisterPaymentDialog(
     detail: LoanDetail?,
     isLoading: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String) -> Unit,
+    onConfirm: (String, String, String, Long?, Double?) -> Unit,
 ) {
     val currency = rememberCurrency()
     val nextCollectibleInstallment = remember(detail) {
@@ -746,24 +754,50 @@ private fun RegisterPaymentDialog(
             ?.filter { it.status.trim().lowercase() != "cancelled" && it.hasPendingCharge }
             ?.minByOrNull { it.installmentNumber }
     }
+    val allowsCapitalPrepayment = detail?.allowsCapitalPrepayment == true && nextCollectibleInstallment != null
     val suggestedAmount = nextCollectibleInstallment?.pendingAmount?.takeIf { it > 0.0 }
         ?: loan.installmentAmount.takeIf { it > 0.0 }
         ?: loan.remainingBalance.takeIf { it > 0.0 }
         ?: 0.0
-    var amount by remember(suggestedAmount) {
-        mutableStateOf(
-            when {
-                suggestedAmount <= 0 -> ""
-                suggestedAmount % 1.0 == 0.0 -> suggestedAmount.toLong().toString()
-                else -> suggestedAmount.toString()
-            },
-        )
-    }
+
+    var amount by remember(suggestedAmount) { mutableStateOf(paymentInput(suggestedAmount)) }
+    var capitalText by remember(loan.id, nextCollectibleInstallment?.id) { mutableStateOf("") }
     var method by remember { mutableStateOf(PaymentMethod.Cash) }
     var allocationMode by remember { mutableStateOf(AllocationMode.PrincipalAndInterest) }
 
-    val parsedAmount = amount.toDoubleOrNull()
+    val isCapitalPrepaymentMode = allocationMode == AllocationMode.CurrentPlusCapital
+    val currentChargeAmount = nextCollectibleInstallment?.let { installment ->
+        if (installment.pendingPrincipal <= 0.01 && installment.pendingInterest > 0) {
+            installment.pendingLateFee + installment.pendingInterest
+        } else {
+            installment.pendingAmount
+        }
+    } ?: 0.0
+    val suggestedCapital = nextCollectibleInstallment?.let { installment ->
+        val principalCoveredByCurrentCharge = if (installment.pendingPrincipal <= 0.01 && installment.pendingInterest > 0) {
+            0.0
+        } else {
+            installment.pendingPrincipal
+        }
+        (loan.remainingBalance - principalCoveredByCurrentCharge).coerceAtLeast(0.0)
+    } ?: 0.0
+    val parsedCapital = capitalText.toDoubleOrNull()
+    val parsedAmount = if (isCapitalPrepaymentMode) {
+        parsedCapital?.let { currentChargeAmount + it }
+    } else {
+        amount.toDoubleOrNull()
+    }
+
+    val capitalError = when {
+        !isCapitalPrepaymentMode -> null
+        !allowsCapitalPrepayment -> "Este préstamo no permite abono a capital."
+        capitalText.isBlank() || parsedCapital == null -> "Indica el abono o saldo a capital."
+        parsedCapital <= 0 -> "El abono debe ser mayor que cero."
+        parsedCapital - suggestedCapital > 0.01 -> "No puede exceder ${currency.format(suggestedCapital)}."
+        else -> null
+    }
     val amountError = when {
+        isCapitalPrepaymentMode -> capitalError
         amount.isBlank() -> null
         parsedAmount == null || parsedAmount <= 0 -> "Indica un monto válido."
         else -> null
@@ -788,7 +822,7 @@ private fun RegisterPaymentDialog(
                     text = buildString {
                         append("Balance capital: ${currency.format(loan.remainingBalance)}")
                         nextCollectibleInstallment?.let {
-                            append(" · Próxima cuota pendiente: ${currency.format(it.pendingAmount)}")
+                            append(" · Cuota objetivo #${it.installmentNumber}: ${currency.format(it.pendingAmount)}")
                         }
                     },
                     style = MaterialTheme.typography.bodySmall,
@@ -796,20 +830,27 @@ private fun RegisterPaymentDialog(
                 )
 
                 OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
+                    value = if (isCapitalPrepaymentMode) paymentInput(currentChargeAmount) else amount,
+                    onValueChange = { if (!isCapitalPrepaymentMode) amount = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Monto a cobrar") },
+                    enabled = !isCapitalPrepaymentMode,
+                    label = { Text(if (isCapitalPrepaymentMode) "Interés actual de la cuota" else "Monto a cobrar") },
                     singleLine = true,
-                    isError = amountError != null,
+                    isError = amountError != null && !isCapitalPrepaymentMode,
                     supportingText = {
-                        amountError?.let { Text(it) }
+                        if (isCapitalPrepaymentMode) {
+                            nextCollectibleInstallment?.let {
+                                Text("Cuota #${it.installmentNumber}: se cobra la mora/interés actual antes del abono.")
+                            }
+                        } else {
+                            amountError?.let { Text(it) }
+                        }
                     },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Outlined.AttachMoney,
                             contentDescription = null,
-                            tint = if (amountError != null) Error else TextVariant,
+                            tint = if (amountError != null && !isCapitalPrepaymentMode) Error else TextVariant,
                         )
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -824,14 +865,56 @@ private fun RegisterPaymentDialog(
                 AllocationModeSelector(
                     selected = allocationMode,
                     hasLateFee = false,
-                    onSelected = { allocationMode = it },
+                    includeCapitalPrepayment = allowsCapitalPrepayment,
+                    onSelected = { selectedMode ->
+                        allocationMode = selectedMode
+                        if (selectedMode == AllocationMode.CurrentPlusCapital && capitalText.isBlank()) {
+                            capitalText = paymentInput(suggestedCapital)
+                        }
+                    },
                 )
+
+                if (isCapitalPrepaymentMode) {
+                    OutlinedTextField(
+                        value = capitalText,
+                        onValueChange = { capitalText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Abono o saldo a capital") },
+                        singleLine = true,
+                        isError = capitalError != null,
+                        supportingText = {
+                            Text(capitalError ?: "Para saldar, deja el capital pendiente completo.")
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.AttachMoney,
+                                contentDescription = null,
+                                tint = if (capitalError != null) Error else TextVariant,
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(14.dp),
+                    )
+
+                    CapitalPrepaymentSummary(
+                        cuota = currentChargeAmount,
+                        capital = parsedCapital?.takeIf { it > 0 } ?: 0.0,
+                    )
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(amount, method.apiValue, allocationMode.apiValue) },
-                enabled = !isLoading && parsedAmount != null && parsedAmount > 0,
+                onClick = {
+                    onConfirm(
+                        paymentInput(parsedAmount ?: 0.0),
+                        method.apiValue,
+                        allocationMode.apiValue,
+                        nextCollectibleInstallment?.id?.takeIf { isCapitalPrepaymentMode },
+                        parsedCapital?.takeIf { isCapitalPrepaymentMode },
+                    )
+                },
+                enabled = !isLoading && parsedAmount != null && parsedAmount > 0 && amountError == null,
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryContainer),
             ) {
                 Text(if (isLoading) "Procesando..." else "Cobrar")
@@ -847,7 +930,6 @@ private fun RegisterPaymentDialog(
         },
     )
 }
-
 @Composable
 private fun LoanHeaderCard(
     loan: LoanSummary,

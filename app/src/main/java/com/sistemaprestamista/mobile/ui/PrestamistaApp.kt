@@ -791,8 +791,8 @@ private fun AuthenticatedShell(
                         },
                         // FAB "Registrar pago": solo para back-office con permiso de cobro.
                         onRegisterPayment = if (state.canRegisterAdminPayment) {
-                            { loanId, amountText, method, allocationMode, targetInstallmentId ->
-                                onRegisterAdminPayment(loanId, amountText, method, allocationMode, targetInstallmentId, null)
+                            { loanId, amountText, method, allocationMode, targetInstallmentId, capitalPrepaymentAmount ->
+                                onRegisterAdminPayment(loanId, amountText, method, allocationMode, targetInstallmentId, capitalPrepaymentAmount)
                             }
                         } else null,
                         isPaymentLoading = state.isPaymentSaving,
