@@ -151,8 +151,11 @@ internal fun LoanDetailScreen(
         )
     }
 
+    val hasCollectibleInstallments = installments.any {
+        it.status.trim().lowercase() != "cancelled" && it.hasPendingCharge
+    }
     val canPay = onRegisterPayment != null &&
-            loan.status.trim().lowercase() in setOf("active", "late")
+            (loan.status.trim().lowercase() in setOf("active", "late") || hasCollectibleInstallments)
 
     if (showPaymentDialog && onRegisterPayment != null) {
         // Mantener el diálogo abierto mostrando "Procesando..." mientras el cobro corre
@@ -169,6 +172,7 @@ internal fun LoanDetailScreen(
         }
         RegisterPaymentDialog(
             loan = loan,
+            detail = detail,
             isLoading = isPaymentLoading,
             onDismiss = { if (!isPaymentLoading) showPaymentDialog = false },
             onConfirm = { amountText, methodApiValue, allocationModeApiValue ->
@@ -251,7 +255,7 @@ internal fun LoanDetailScreen(
             items(installments, key = { it.id }) { installment ->
                 LoanInstallmentCard(
                     installment = installment,
-                    pendingAmount = currency.format(installment.pendingAmount),
+                    formatAmount = { currency.format(it) },
                     onOpenInstallment = onOpenInstallment,
                 )
             }
@@ -731,17 +735,27 @@ private fun LoanDocumentsCard(
 @Composable
 private fun RegisterPaymentDialog(
     loan: LoanSummary,
+    detail: LoanDetail?,
     isLoading: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (String, String, String) -> Unit,
 ) {
     val currency = rememberCurrency()
-    var amount by remember {
+    val nextCollectibleInstallment = remember(detail) {
+        detail?.installments
+            ?.filter { it.status.trim().lowercase() != "cancelled" && it.hasPendingCharge }
+            ?.minByOrNull { it.installmentNumber }
+    }
+    val suggestedAmount = nextCollectibleInstallment?.pendingAmount?.takeIf { it > 0.0 }
+        ?: loan.installmentAmount.takeIf { it > 0.0 }
+        ?: loan.remainingBalance.takeIf { it > 0.0 }
+        ?: 0.0
+    var amount by remember(suggestedAmount) {
         mutableStateOf(
             when {
-                loan.installmentAmount <= 0 -> ""
-                loan.installmentAmount % 1.0 == 0.0 -> loan.installmentAmount.toLong().toString()
-                else -> loan.installmentAmount.toString()
+                suggestedAmount <= 0 -> ""
+                suggestedAmount % 1.0 == 0.0 -> suggestedAmount.toLong().toString()
+                else -> suggestedAmount.toString()
             },
         )
     }
@@ -771,7 +785,12 @@ private fun RegisterPaymentDialog(
                 )
 
                 Text(
-                    text = "Balance pendiente: ${currency.format(loan.remainingBalance)}",
+                    text = buildString {
+                        append("Balance capital: ${currency.format(loan.remainingBalance)}")
+                        nextCollectibleInstallment?.let {
+                            append(" · Próxima cuota pendiente: ${currency.format(it.pendingAmount)}")
+                        }
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = TextVariant,
                 )
@@ -1241,11 +1260,12 @@ private fun SectionHeader(
 @Composable
 private fun LoanInstallmentCard(
     installment: InstallmentSummary,
-    pendingAmount: String,
+    formatAmount: (Double) -> String,
     onOpenInstallment: (Long) -> Unit,
 ) {
     val isLate = installment.daysLate > 0
     val installmentNumber = installment.installmentNumber ?: 0
+    val pendingAmount = formatAmount(installment.pendingAmount)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1298,6 +1318,14 @@ private fun LoanInstallmentCard(
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isLate) Error else Secondary,
+                    )
+
+                    Text(
+                        text = "Capital ${formatAmount(installment.pendingPrincipal)} · Interés ${formatAmount(installment.pendingInterest)} · Mora ${formatAmount(installment.pendingLateFee)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

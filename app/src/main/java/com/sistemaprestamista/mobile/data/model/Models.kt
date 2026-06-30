@@ -280,17 +280,15 @@ data class InstallmentSummary(
     val paidPrincipal: Double = 0.0,
     val paidInterest: Double = 0.0,
     val paidLateFee: Double = 0.0,
+    val pendingPrincipal: Double,
+    val pendingInterest: Double,
+    val pendingLateFee: Double,
+    val pendingAmount: Double,
     val daysLate: Int,
     val status: String,
 ) {
-    val pendingAmount: Double
-        get() = (principalAmount + interestAmount + lateFee - totalPaid).coerceAtLeast(0.0)
-    val pendingPrincipal: Double
-        get() = (principalAmount - paidPrincipal).coerceAtLeast(0.0)
-    val pendingInterest: Double
-        get() = (interestAmount - paidInterest).coerceAtLeast(0.0)
-    val pendingLateFee: Double
-        get() = (lateFee - paidLateFee).coerceAtLeast(0.0)
+    val hasPendingCharge: Boolean
+        get() = pendingAmount > 0.0 || pendingPrincipal > 0.0 || pendingInterest > 0.0 || pendingLateFee > 0.0
 }
 
 data class InstallmentPaymentLine(

@@ -1420,6 +1420,34 @@ class PrestamistaApiClient(
     }
 
     private fun parseInstallment(json: JSONObject): InstallmentSummary {
+        val principalAmount = json.optDouble("principal_amount", 0.0)
+        val interestAmount = json.optDouble("interest_amount", 0.0)
+        val lateFee = json.optDouble("late_fee", 0.0)
+        val paidPrincipal = json.optDouble("paid_principal", 0.0)
+        val paidInterest = json.optDouble("paid_interest", 0.0)
+        val paidLateFee = json.optDouble("paid_late_fee", 0.0)
+        val totalPaid = json.optDouble("total_paid", 0.0)
+        val pendingPrincipal = if (json.has("pending_principal")) {
+            json.optDouble("pending_principal", 0.0)
+        } else {
+            (principalAmount - paidPrincipal).coerceAtLeast(0.0)
+        }
+        val pendingInterest = if (json.has("pending_interest")) {
+            json.optDouble("pending_interest", 0.0)
+        } else {
+            (interestAmount - paidInterest).coerceAtLeast(0.0)
+        }
+        val pendingLateFee = if (json.has("pending_late_fee")) {
+            json.optDouble("pending_late_fee", 0.0)
+        } else {
+            (lateFee - paidLateFee).coerceAtLeast(0.0)
+        }
+        val pendingAmount = if (json.has("pending_amount")) {
+            json.optDouble("pending_amount", 0.0)
+        } else {
+            (principalAmount + interestAmount + lateFee - totalPaid).coerceAtLeast(0.0)
+        }
+
         return InstallmentSummary(
             id = json.getLong("id"),
             loanId = json.getLong("loan_id"),
@@ -1427,14 +1455,18 @@ class PrestamistaApiClient(
             client = json.optJSONObject("client")?.let(::parseClient),
             installmentNumber = json.optInt("installment_number"),
             dueDate = json.nullableString("due_date"),
-            principalAmount = json.optDouble("principal_amount", 0.0),
-            interestAmount = json.optDouble("interest_amount", 0.0),
-            lateFee = json.optDouble("late_fee", 0.0),
+            principalAmount = principalAmount,
+            interestAmount = interestAmount,
+            lateFee = lateFee,
             installmentAmount = json.optDouble("installment_amount", 0.0),
-            totalPaid = json.optDouble("total_paid", 0.0),
-            paidPrincipal = json.optDouble("paid_principal", 0.0),
-            paidInterest = json.optDouble("paid_interest", 0.0),
-            paidLateFee = json.optDouble("paid_late_fee", 0.0),
+            totalPaid = totalPaid,
+            paidPrincipal = paidPrincipal,
+            paidInterest = paidInterest,
+            paidLateFee = paidLateFee,
+            pendingPrincipal = pendingPrincipal,
+            pendingInterest = pendingInterest,
+            pendingLateFee = pendingLateFee,
+            pendingAmount = pendingAmount,
             daysLate = json.optInt("days_late", 0),
             status = json.optString("status"),
         )

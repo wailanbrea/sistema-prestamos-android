@@ -118,11 +118,13 @@ internal fun InstallmentDetailScreen(
     val currency = rememberCurrency()
     val parsedAmount = amount.toDoubleOrNull()
     val isLate = installment.daysLate > 0 && installment.status.trim().lowercase() !in setOf("paid", "cancelled")
+    val canCollectInstallment = installment.status.trim().lowercase() != "cancelled" && installment.hasPendingCharge
 
     val amountError = when {
         amount.isBlank() -> "Indica el monto."
         parsedAmount == null -> "Monto inválido."
         parsedAmount <= 0 -> "Debe ser mayor que cero."
+        !canCollectInstallment -> "Esta cuota no tiene pendiente cobrable."
         parsedAmount > installment.pendingAmount -> "No puede exceder ${currency.format(installment.pendingAmount)}."
         else -> null
     }
@@ -145,9 +147,9 @@ internal fun InstallmentDetailScreen(
         }
 
         InstallmentMetricsGrid(
-            capital = currency.format(installment.principalAmount),
-            interest = currency.format(installment.interestAmount),
-            lateFee = currency.format(installment.lateFee),
+            capital = currency.format(installment.pendingPrincipal),
+            interest = currency.format(installment.pendingInterest),
+            lateFee = currency.format(installment.pendingLateFee),
             pending = currency.format(installment.pendingAmount),
         )
 
@@ -409,7 +411,7 @@ private fun InstallmentMetricsGrid(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             InstallmentMetricCard(
-                title = "Capital",
+                title = "Capital pendiente",
                 value = capital,
                 valueColor = TextMain,
                 modifier = Modifier.weight(1f),
@@ -428,14 +430,14 @@ private fun InstallmentMetricsGrid(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             InstallmentMetricCard(
-                title = "Mora",
+                title = "Mora pendiente",
                 value = lateFee,
                 valueColor = Error,
                 modifier = Modifier.weight(1f),
             )
 
             InstallmentMetricCard(
-                title = "Pendiente",
+                title = "Total pendiente",
                 value = pending,
                 valueColor = PrimaryFixed,
                 containerColor = PrimaryContainer,

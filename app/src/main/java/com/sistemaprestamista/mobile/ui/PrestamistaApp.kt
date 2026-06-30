@@ -736,7 +736,9 @@ private fun AuthenticatedShell(
                         onOpenLoan = { loanId ->
                             navController.navigate(AppRoutes.adminLoanDetail(loanId))
                         },
-                        onOpenInstallment = { },
+                        onOpenInstallment = { installmentId ->
+                            navController.navigate(AppRoutes.installmentDetail(installmentId))
+                        },
                         onEdit = if (state.canUpdateClients && clientId != null) {
                             { navController.navigate(AppRoutes.adminClientEdit(clientId)) }
                         } else null,
@@ -784,7 +786,9 @@ private fun AuthenticatedShell(
                         detail = state.selectedLoanDetail?.takeIf { it.summary.id == loanId },
                         isLoading = state.isDetailLoading,
                         fallbackLoan = state.adminLoans.firstOrNull { it.id == loanId },
-                        onOpenInstallment = { },
+                        onOpenInstallment = { installmentId ->
+                            navController.navigate(AppRoutes.installmentDetail(installmentId))
+                        },
                         // FAB "Registrar pago": solo para back-office con permiso de cobro.
                         onRegisterPayment = if (state.canRegisterAdminPayment) onRegisterAdminPayment else null,
                         isPaymentLoading = state.isPaymentSaving,
@@ -986,9 +990,12 @@ private fun AuthenticatedShell(
                     val installmentId = backStackEntry.arguments
                         ?.getString("installmentId")
                         ?.toLongOrNull()
+                    val fallbackInstallment = state.collectorInstallments.firstOrNull { it.id == installmentId }
+                        ?: state.selectedLoanDetail?.installments?.firstOrNull { it.id == installmentId }
+                        ?: state.selectedClientDetail?.pendingInstallments?.firstOrNull { it.id == installmentId }
 
-                    LaunchedEffect(installmentId) {
-                        if (installmentId != null) {
+                    LaunchedEffect(installmentId, state.canManagePortfolio) {
+                        if (installmentId != null && !state.canManagePortfolio) {
                             onLoadInstallmentDetail(installmentId)
                         }
                     }
@@ -996,10 +1003,15 @@ private fun AuthenticatedShell(
                     InstallmentDetailScreen(
                         detail = state.selectedInstallmentDetail
                             ?.takeIf { it.summary.id == installmentId },
-                        fallbackInstallment = state.collectorInstallments
-                            .firstOrNull { it.id == installmentId },
+                        fallbackInstallment = fallbackInstallment,
                         isLoading = state.isLoading,
-                        onRegisterPayment = onRegisterPayment,
+                        onRegisterPayment = if (state.canRegisterAdminPayment) {
+                            { loanId, amountText, method, allocationMode, targetInstallmentId, _ ->
+                                onRegisterAdminPayment(loanId, amountText, method, allocationMode, targetInstallmentId)
+                            }
+                        } else {
+                            onRegisterPayment
+                        },
                     )
                 }
 
