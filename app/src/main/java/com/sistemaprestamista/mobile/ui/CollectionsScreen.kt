@@ -203,15 +203,12 @@ private fun CollectionInstallmentCard(
     val isLate = installment.daysLate > 0 && installment.status.trim().lowercase() !in setOf("paid", "cancelled")
     val isCapitalMode = allocationMode == AllocationMode.CurrentPlusCapital
 
-    // En "Cuota + capital" la base es la cuota completa; el cobrador solo indica el abono.
-    val cuotaBase = installment.pendingAmount
+    val currentChargeAmount = (installment.pendingLateFee + installment.pendingInterest).coerceAtLeast(0.0)
     val parsedCapital = capitalText.toDoubleOrNull()
-    // Tope local del abono: lo que queda del préstamo después de cubrir esta cuota.
-    // El backend valida el capital exacto re-amortizable; esto evita 422 obvios.
-    val capitalCap = loanRemainingBalance?.let { (it - cuotaBase).coerceAtLeast(0.0) }
+    val capitalCap = loanRemainingBalance?.coerceAtLeast(0.0)
 
     val parsedAmount = if (isCapitalMode) {
-        parsedCapital?.let { cuotaBase + it }
+        parsedCapital?.let { currentChargeAmount + it }
     } else {
         amount.toDoubleOrNull()
     }
@@ -310,7 +307,7 @@ private fun CollectionInstallmentCard(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 OutlinedTextField(
-                    value = if (isCapitalMode) "%.2f".format(Locale.US, cuotaBase) else amount,
+                    value = if (isCapitalMode) "%.2f".format(Locale.US, currentChargeAmount) else amount,
                     onValueChange = { if (!isCapitalMode) amount = it },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isCapitalMode,
@@ -366,7 +363,7 @@ private fun CollectionInstallmentCard(
                     )
 
                     CapitalPrepaymentSummary(
-                        cuota = cuotaBase,
+                        cuota = currentChargeAmount,
                         capital = parsedCapital?.takeIf { it > 0 } ?: 0.0,
                     )
                 } else {
@@ -738,7 +735,15 @@ internal fun AllocationModeSelector(
                 FilterChip(
                     selected = selected == mode,
                     onClick = { onSelected(mode) },
-                    label = { Text(mode.shortLabel, style = MaterialTheme.typography.labelMedium) },
+                    label = {
+                        Column(
+                            modifier = Modifier.padding(vertical = 2.dp),
+                            verticalArrangement = Arrangement.spacedBy(1.dp),
+                        ) {
+                            Text(mode.label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Text(mode.paymentApplicationHelp(), style = MaterialTheme.typography.labelSmall)
+                        }
+                    },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = PrimaryContainer,
                         selectedLabelColor = Color.White,
@@ -747,6 +752,14 @@ internal fun AllocationModeSelector(
             }
         }
     }
+}
+
+private fun AllocationMode.paymentApplicationHelp(): String = when (this) {
+    AllocationMode.Auto -> "Capital, interés y mora."
+    AllocationMode.PrincipalAndInterest -> "No incluye mora."
+    AllocationMode.PrincipalOnly -> "Baja capital, pero puede dejar intereses o mora pendientes."
+    AllocationMode.InterestOnly -> "No baja capital."
+    AllocationMode.CurrentPlusCapital -> "Usar para abonar o saldar antes de tiempo."
 }
 
 // ---------------------------------------------------------------------------
@@ -808,7 +821,7 @@ internal fun CapitalPrepaymentSummary(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            CapitalSummaryRow("Cuota", currency.format(cuota), bold = false)
+            CapitalSummaryRow("Interés/mora actual", currency.format(cuota), bold = false)
             CapitalSummaryRow("Abono a capital", currency.format(capital), bold = false)
             Box(
                 modifier = Modifier

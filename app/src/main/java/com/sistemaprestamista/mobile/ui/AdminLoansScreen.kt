@@ -65,6 +65,8 @@ internal fun AdminLoansScreen(
     hasMore: Boolean = false,
     isLoadingMore: Boolean = false,
     onLoadMore: () -> Unit = {},
+    includePaid: Boolean = false,
+    onIncludePaidChange: (Boolean) -> Unit = {},
     onOpenQuotes: (() -> Unit)? = null,
     onCreateLoan: (() -> Unit)? = null,
     onSendAccountStatement: ((Long) -> Unit)? = null,
@@ -148,6 +150,32 @@ internal fun AdminLoansScreen(
                     unfocusedBorderColor = Color.Transparent,
                 ),
             )
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = if (includePaid) "Mostrando todos los préstamos" else "Mostrando activos y atrasados",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedButton(
+                    onClick = { onIncludePaidChange(!includePaid) },
+                    enabled = !isLoadingMore,
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Text(
+                        text = if (includePaid) "Ver activos" else "Ver todos",
+                        fontWeight = FontWeight.Bold,
+                        color = Primary,
+                    )
+                }
+            }
         }
 
         if (filtered.isEmpty()) {

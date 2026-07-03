@@ -197,12 +197,8 @@ internal fun ReceiptDetailScreen(
         }
 
         PaymentApplicationCard(
-            principalPaid = currency.format(receipt.principalPaid),
-            interestPaid = currency.format(receipt.interestPaid),
-            lateFeePaid = currency.format(receipt.lateFeePaid),
-            previousBalance = currency.format(receipt.previousBalance),
-            paymentMethod = receipt.paymentMethod,
-            status = paymentStatusLabel(receipt.status),
+            receipt = receipt,
+            formatAmount = { currency.format(it) },
             isCancelled = isCancelled,
         )
 
@@ -502,12 +498,8 @@ private fun AmountSummaryCard(
 
 @Composable
 private fun PaymentApplicationCard(
-    principalPaid: String,
-    interestPaid: String,
-    lateFeePaid: String,
-    previousBalance: String,
-    paymentMethod: String,
-    status: String,
+    receipt: PaymentReceipt,
+    formatAmount: (Double) -> String,
     isCancelled: Boolean,
 ) {
     Card(
@@ -538,10 +530,20 @@ private fun PaymentApplicationCard(
                 )
             }
 
-            ReceiptInfoRow("Capital", principalPaid)
-            ReceiptInfoRow("Interés", interestPaid)
-            ReceiptInfoRow("Mora", lateFeePaid)
-            ReceiptInfoRow("Balance anterior", previousBalance)
+            ReceiptInfoRow("Tipo aplicado", paymentAllocationModeLabel(receipt.allocationMode))
+            receipt.targetInstallmentNumber?.let { installmentNumber ->
+                ReceiptInfoRow("Cuota objetivo", "#$installmentNumber")
+            }
+            ReceiptInfoRow("Capital pagado", formatAmount(receipt.principalPaid))
+            ReceiptInfoRow("Interés pagado", formatAmount(receipt.interestPaid))
+            ReceiptInfoRow("Mora pagada", formatAmount(receipt.lateFeePaid))
+            ReceiptInfoRow("Abono a capital", formatAmount(receipt.capitalPrepaid))
+            ReceiptInfoRow("Vuelto al cliente", formatAmount(receipt.changeGiven))
+            receipt.excessAction
+                ?.takeIf { it.isNotBlank() }
+                ?.let { ReceiptInfoRow("Acción de excedente", excessActionLabel(it)) }
+            ReceiptInfoRow("Balance anterior", formatAmount(receipt.previousBalance))
+            ReceiptInfoRow("Nuevo balance", formatAmount(receipt.newBalance))
 
             Row(
                 modifier = Modifier
@@ -568,7 +570,7 @@ private fun PaymentApplicationCard(
                     )
 
                     Text(
-                        text = paymentMethod,
+                        text = receipt.paymentMethod,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = TextMain,
@@ -576,7 +578,7 @@ private fun PaymentApplicationCard(
                 }
             }
 
-            ReceiptInfoRow("Estado", status, showDivider = false)
+            ReceiptInfoRow("Estado", paymentStatusLabel(receipt.status), showDivider = false)
         }
     }
 }

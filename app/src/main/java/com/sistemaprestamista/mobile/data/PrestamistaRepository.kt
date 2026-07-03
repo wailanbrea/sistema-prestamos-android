@@ -88,10 +88,11 @@ class PrestamistaRepository(
 
     fun adminClient(clientId: Long): ClientDetail = apiClient.adminClient(requiredToken(), clientId)
 
-    fun adminLoans(status: String? = null, search: String? = null): List<LoanSummary> = apiClient.adminLoans(requiredToken(), status, search)
+    fun adminLoans(status: String? = null, search: String? = null, includePaid: Boolean = false): List<LoanSummary> =
+        apiClient.adminLoans(requiredToken(), status, search, includePaid)
 
-    fun adminLoansPage(page: Int, status: String? = null, search: String? = null): com.sistemaprestamista.mobile.data.model.Page<LoanSummary> =
-        apiClient.adminLoansPage(requiredToken(), page, status, search)
+    fun adminLoansPage(page: Int, status: String? = null, search: String? = null, includePaid: Boolean = false): com.sistemaprestamista.mobile.data.model.Page<LoanSummary> =
+        apiClient.adminLoansPage(requiredToken(), page, status, search, includePaid)
 
     fun adminLoan(loanId: Long): LoanDetail = apiClient.adminLoan(requiredToken(), loanId)
 
@@ -210,7 +211,8 @@ class PrestamistaRepository(
 
     fun drivingRoute(points: List<RoutePoint>): List<RoutePoint> = googleRoutesClient.drivingRoute(points)
 
-    fun collectorLoans(cacheOnly: Boolean = false): List<LoanSummary> = apiClient.collectorLoans(requiredToken(), cacheOnly)
+    fun collectorLoans(cacheOnly: Boolean = false, includePaid: Boolean = false): List<LoanSummary> =
+        apiClient.collectorLoans(requiredToken(), cacheOnly, includePaid)
 
     fun collectorLoan(loanId: Long): LoanDetail = apiClient.collectorLoan(requiredToken(), loanId)
 

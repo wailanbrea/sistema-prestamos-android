@@ -6,6 +6,8 @@ import android.print.PrintManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
+import com.sistemaprestamista.mobile.ui.excessActionLabel
+import com.sistemaprestamista.mobile.ui.paymentAllocationModeLabel
 import com.sistemaprestamista.mobile.ui.paymentStatusLabel
 import java.text.NumberFormat
 import java.util.Locale
@@ -67,9 +69,14 @@ class A4ReceiptPrinter(
                 </div>
                 <div class="box">
                     ${row("Monto pagado", currency.format(receipt.amount), "total")}
+                    ${row("Tipo aplicado", paymentAllocationModeLabel(receipt.allocationMode))}
+                    ${receipt.targetInstallmentNumber?.let { row("Cuota objetivo", "#$it") } ?: ""}
                     ${row("Capital aplicado", currency.format(receipt.principalPaid))}
                     ${row("Interes aplicado", currency.format(receipt.interestPaid))}
                     ${row("Mora aplicada", currency.format(receipt.lateFeePaid))}
+                    ${row("Abono a capital", currency.format(receipt.capitalPrepaid))}
+                    ${row("Vuelto al cliente", currency.format(receipt.changeGiven))}
+                    ${receipt.excessAction?.takeIf { it.isNotBlank() }?.let { row("Excedente", excessActionLabel(it)) } ?: ""}
                     ${row("Balance anterior", currency.format(receipt.previousBalance))}
                     ${row("Balance nuevo", currency.format(receipt.newBalance))}
                 </div>

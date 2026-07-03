@@ -46,6 +46,24 @@ fun paymentStatusLabel(status: String?): String = when (status?.trim()?.lowercas
     else -> status?.replaceFirstChar { it.uppercase() }.orEmpty()
 }
 
+fun paymentAllocationModeLabel(mode: String?): String = when (mode?.trim()?.lowercase()) {
+    "auto", "", null -> "Automático"
+    "principal_and_interest" -> "Capital + interés"
+    "interest_only" -> "Solo interés"
+    "principal_only" -> "Solo capital"
+    "current_plus_capital" -> "Cuota + capital"
+    "custom" -> "Personalizado"
+    else -> mode.replaceFirstChar { it.uppercase() }
+}
+
+fun excessActionLabel(action: String?): String = when (action?.trim()?.lowercase()) {
+    "prepayment" -> "Abono a capital"
+    "change" -> "Vuelto al cliente"
+    "reject" -> "Rechazar excedente"
+    "", null -> ""
+    else -> action.replaceFirstChar { it.uppercase() }
+}
+
 fun commissionStatusLabel(status: String?): String = when (status?.trim()?.lowercase()) {
     "pending", "", null -> "Pendiente"
     "paid" -> "Pagada"

@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
+import com.sistemaprestamista.mobile.ui.excessActionLabel
+import com.sistemaprestamista.mobile.ui.paymentAllocationModeLabel
 import java.nio.charset.Charset
 import java.text.NumberFormat
 import java.util.Locale
@@ -81,9 +83,18 @@ class BluetoothReceiptPrinter(
         builder.append(row("Prestamo", receipt.loanNumber ?: receipt.loanId.toString(), width)).append('\n')
         builder.append(line(width)).append('\n')
         builder.append(row("Monto", currency.format(receipt.amount), width)).append('\n')
+        builder.append(row("Tipo", paymentAllocationModeLabel(receipt.allocationMode), width)).append('\n')
+        receipt.targetInstallmentNumber?.let {
+            builder.append(row("Cuota obj.", "#$it", width)).append('\n')
+        }
         builder.append(row("Capital", currency.format(receipt.principalPaid), width)).append('\n')
         builder.append(row("Interes", currency.format(receipt.interestPaid), width)).append('\n')
         builder.append(row("Mora", currency.format(receipt.lateFeePaid), width)).append('\n')
+        builder.append(row("Abono cap.", currency.format(receipt.capitalPrepaid), width)).append('\n')
+        builder.append(row("Vuelto", currency.format(receipt.changeGiven), width)).append('\n')
+        receipt.excessAction?.takeIf { it.isNotBlank() }?.let {
+            builder.append(row("Excedente", excessActionLabel(it), width)).append('\n')
+        }
         builder.append(row("Balance ant.", currency.format(receipt.previousBalance), width)).append('\n')
         builder.append(row("Balance nuevo", currency.format(receipt.newBalance), width)).append('\n')
         builder.append(row("Metodo", receipt.paymentMethod, width)).append('\n')

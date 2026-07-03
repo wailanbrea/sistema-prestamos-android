@@ -8,6 +8,7 @@ import com.sistemaprestamista.mobile.data.PaymentRegistrationResult
 import com.sistemaprestamista.mobile.data.PrestamistaRepository
 import com.sistemaprestamista.mobile.data.model.AccountPayableInput
 import com.sistemaprestamista.mobile.data.model.CreditorInput
+import com.sistemaprestamista.mobile.data.model.LoanSummary
 import com.sistemaprestamista.mobile.data.model.PaymentHistoryFilters
 import com.sistemaprestamista.mobile.data.model.RoutePoint
 import com.sistemaprestamista.mobile.data.pending.PendingPayment
@@ -121,10 +122,11 @@ class MainViewModel(
                 withContext(Dispatchers.IO) {
                     repository.syncPendingPayments()
                     val currentUser = uiState.value.user
+                    val includePaidLoans = uiState.value.adminLoansIncludePaid
                     coroutineScope {
                         val dashboard = async { loadDashboardIfAllowed(currentUser) }
                         val collectorWorkload = async { loadCollectorWorkloadIfAllowed(currentUser) }
-                        val adminWorkload = async { loadAdminWorkloadIfAllowed(currentUser) }
+                        val adminWorkload = async { loadAdminWorkloadIfAllowed(currentUser, includePaidLoans) }
                         val cashboxWorkload = async { loadCashboxWorkloadIfAllowed(currentUser) }
                         RefreshBundle(
                             dashboard.await(),
@@ -580,9 +582,15 @@ class MainViewModel(
                 withContext(Dispatchers.IO) { repository.adminCreateLoan(input) }
             }.onSuccess { loan ->
                 _uiState.update {
+                    val visibleLoans = if (loan.isVisibleInOpenLoanFilter() || it.adminLoansIncludePaid) {
+                        listOf(loan) + it.adminLoans
+                    } else {
+                        it.adminLoans
+                    }
+
                     it.copy(
                         isLoanSaving = false,
-                        adminLoans = listOf(loan) + it.adminLoans,
+                        adminLoans = visibleLoans,
                         lastCreatedLoanId = loan.id,
                         successMessage = "Préstamo ${loan.loanNumber} creado.",
                     )
@@ -602,10 +610,14 @@ class MainViewModel(
                 withContext(Dispatchers.IO) { repository.adminUpdateLoan(loanId, input) }
             }.onSuccess { detail ->
                 _uiState.update {
+                    val updatedLoans = it.adminLoans
+                        .map { loan -> if (loan.id == loanId) detail.summary else loan }
+                        .filter { loan -> it.adminLoansIncludePaid || loan.isVisibleInOpenLoanFilter() }
+
                     it.copy(
                         isLoanUpdating = false,
                         selectedLoanDetail = detail,
-                        adminLoans = it.adminLoans.map { loan -> if (loan.id == loanId) detail.summary else loan },
+                        adminLoans = updatedLoans,
                         successMessage = "Préstamo actualizado.",
                     )
                 }
@@ -862,9 +874,13 @@ class MainViewModel(
                 withContext(Dispatchers.IO) { repository.adminLoan(loanId) }
             }.onSuccess { detail ->
                 _uiState.update { current ->
+                    val updatedLoans = current.adminLoans
+                        .map { if (it.id == loanId) detail.summary else it }
+                        .filter { current.adminLoansIncludePaid || it.isVisibleInOpenLoanFilter() }
+
                     current.copy(
                         selectedLoanDetail = detail,
-                        adminLoans = current.adminLoans.map { if (it.id == loanId) detail.summary else it },
+                        adminLoans = updatedLoans,
                     )
                 }
             }
@@ -1935,7 +1951,7 @@ class MainViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingMoreAdminLoans = true, errorMessage = null) }
             runCatching {
-                withContext(Dispatchers.IO) { repository.adminLoansPage(state.adminLoansLoadedPage + 1) }
+                withContext(Dispatchers.IO) { repository.adminLoansPage(state.adminLoansLoadedPage + 1, includePaid = state.adminLoansIncludePaid) }
             }.onSuccess { page ->
                 _uiState.update { current ->
                     val existingIds = current.adminLoans.mapTo(HashSet()) { it.id }
@@ -1953,8 +1969,44 @@ class MainViewModel(
         }
     }
 
+    fun setAdminLoansIncludePaid(includePaid: Boolean) {
+        val state = uiState.value
+        if (state.adminLoansIncludePaid == includePaid || state.isLoadingMoreAdminLoans) return
+
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    adminLoansIncludePaid = includePaid,
+                    isLoadingMoreAdminLoans = true,
+                    errorMessage = null,
+                )
+            }
+            runCatching {
+                withContext(Dispatchers.IO) { repository.adminLoansPage(page = 1, includePaid = includePaid) }
+            }.onSuccess { page ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingMoreAdminLoans = false,
+                        adminLoans = page.items,
+                        adminLoansLoadedPage = page.currentPage,
+                        adminLoansHasMore = page.hasMore,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingMoreAdminLoans = false,
+                        adminLoansIncludePaid = !includePaid,
+                        errorMessage = throwable.userMessage(),
+                    )
+                }
+            }
+        }
+    }
+
     private suspend fun loadAdminWorkloadIfAllowed(
         user: com.sistemaprestamista.mobile.data.model.UserProfile?,
+        includePaidLoans: Boolean = false,
     ): AdminWorkload? = coroutineScope {
         val permissions = user?.permissions.orEmpty()
         val managePortfolio = permissions.contains("collectors.manage") && user?.isCollector != true
@@ -1969,7 +2021,7 @@ class MainViewModel(
         val clients = async(Dispatchers.IO) { if (managePortfolio) repository.adminClients() else emptyList() }
         // Cartera de préstamos paginada: solo la primera página al inicio (arranque rápido);
         // el resto se trae bajo demanda con "Cargar más" (loadMoreAdminLoans).
-        val loansPage = async(Dispatchers.IO) { if (managePortfolio) repository.adminLoansPage(1) else null }
+        val loansPage = async(Dispatchers.IO) { if (managePortfolio) repository.adminLoansPage(1, includePaid = includePaidLoans) else null }
         val approvals = async(Dispatchers.IO) { if (canApprove) repository.adminApprovals() else emptyList() }
         val reportSummary = async(Dispatchers.IO) { if (canViewReports) runCatching { repository.adminReportSummary() }.getOrNull() else null }
         val collectorPerformance = async(Dispatchers.IO) { if (canViewReports) runCatching { repository.adminReportCollectors() }.getOrNull().orEmpty() else emptyList() }
@@ -2327,4 +2379,6 @@ class MainViewModel(
         val installments: List<com.sistemaprestamista.mobile.data.model.InstallmentSummary>,
         val payments: List<com.sistemaprestamista.mobile.data.model.PaymentReceipt>,
     )
+
+    private fun LoanSummary.isVisibleInOpenLoanFilter(): Boolean = status in setOf("active", "late")
 }

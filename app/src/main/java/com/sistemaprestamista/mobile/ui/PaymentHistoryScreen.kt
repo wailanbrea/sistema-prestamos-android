@@ -513,6 +513,13 @@ private fun PaymentCard(
                             maxLines = 1,
                         )
                     }
+
+                    Text(
+                        text = "Tipo aplicado: ${paymentAllocationModeLabel(payment.allocationMode)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = TextVariant,
+                    )
                 }
 
                 PaymentStatusBadge(status = payment.status)

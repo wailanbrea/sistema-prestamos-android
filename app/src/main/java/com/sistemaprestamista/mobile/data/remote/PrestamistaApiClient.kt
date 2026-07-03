@@ -271,8 +271,12 @@ class PrestamistaApiClient(
         return parseClientDetail(json.getJSONObject("data"))
     }
 
-    fun collectorLoans(token: String, cacheOnly: Boolean = false): List<LoanSummary> {
-        val json = request(path = "collector/loans?per_page=100", method = "GET", token = token, cacheOnly = cacheOnly)
+    fun collectorLoans(token: String, cacheOnly: Boolean = false, includePaid: Boolean = false): List<LoanSummary> {
+        val query = buildString {
+            append("per_page=100")
+            if (includePaid) append("&include_paid=1")
+        }
+        val json = request(path = "collector/loans?$query", method = "GET", token = token, cacheOnly = cacheOnly)
         return json.optJSONArray("data").mapObjects(::parseLoan)
     }
 
@@ -739,11 +743,12 @@ class PrestamistaApiClient(
         return parseClientDetail(json.getJSONObject("data"))
     }
 
-    fun adminLoans(token: String, status: String?, search: String?): List<LoanSummary> {
+    fun adminLoans(token: String, status: String?, search: String?, includePaid: Boolean = false): List<LoanSummary> {
         val query = buildString {
             append("per_page=100")
             status?.takeIf { it.isNotBlank() }?.let { append("&status=").append(it.urlEncode()) }
             search?.takeIf { it.isNotBlank() }?.let { append("&search=").append(it.urlEncode()) }
+            if (includePaid) append("&include_paid=1")
         }
         val json = request(path = "admin/loans?$query", method = "GET", token = token)
         return json.optJSONArray("data").mapObjects(::parseLoan)
@@ -755,6 +760,7 @@ class PrestamistaApiClient(
         page: Int,
         status: String? = null,
         search: String? = null,
+        includePaid: Boolean = false,
         perPage: Int = 50,
     ): Page<LoanSummary> {
         val query = buildString {
@@ -762,6 +768,7 @@ class PrestamistaApiClient(
             append("&page=").append(page)
             status?.takeIf { it.isNotBlank() }?.let { append("&status=").append(it.urlEncode()) }
             search?.takeIf { it.isNotBlank() }?.let { append("&search=").append(it.urlEncode()) }
+            if (includePaid) append("&include_paid=1")
         }
         val json = request(path = "admin/loans?$query", method = "GET", token = token)
         val meta = json.optJSONObject("meta")
@@ -1529,6 +1536,12 @@ class PrestamistaApiClient(
             principalPaid = json.optDouble("principal_paid", 0.0),
             interestPaid = json.optDouble("interest_paid", 0.0),
             lateFeePaid = json.optDouble("late_fee_paid", 0.0),
+            allocationMode = json.nullableString("allocation_mode"),
+            targetInstallmentId = json.nullableLong("target_installment_id"),
+            targetInstallmentNumber = json.nullableInt("target_installment_number"),
+            excessAction = json.nullableString("excess_action"),
+            capitalPrepaid = json.optDouble("capital_prepaid", json.optDouble("capital_prepayment_amount", 0.0)),
+            changeGiven = json.optDouble("change_given", 0.0),
             previousBalance = json.optDouble("previous_balance", 0.0),
             newBalance = json.optDouble("new_balance", 0.0),
             paymentMethod = json.optString("payment_method"),

@@ -134,11 +134,7 @@ internal fun InstallmentDetailScreen(
     val isLate = installment.daysLate > 0 && installment.status.trim().lowercase() !in setOf("paid", "cancelled")
     val canCollectInstallment = installment.status.trim().lowercase() != "cancelled" && installment.hasPendingCharge
     val isCapitalPrepaymentMode = allocationMode == AllocationMode.CurrentPlusCapital
-    val currentChargeAmount = if (installment.pendingPrincipal <= 0.01 && installment.pendingInterest > 0) {
-        roundCurrency(installment.pendingLateFee + installment.pendingInterest)
-    } else {
-        installment.pendingAmount
-    }
+    val currentChargeAmount = roundCurrency(installment.pendingLateFee + installment.pendingInterest)
     val parsedCapital = capitalText.toDoubleOrNull()
     val parsedAmount = if (isCapitalPrepaymentMode) {
         parsedCapital?.let { roundCurrency(currentChargeAmount + it) }
@@ -641,7 +637,7 @@ private fun PaymentRegisterCard(
                     },
                     label = {
                         if (isCapitalPrepaymentMode) {
-                            Text("Interés actual de la cuota")
+                            Text("Interés/mora actual de la cuota")
                         }
                     },
                     leadingIcon = {

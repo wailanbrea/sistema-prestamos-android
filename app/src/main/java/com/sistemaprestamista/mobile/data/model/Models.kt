@@ -341,6 +341,12 @@ data class PaymentReceipt(
     val principalPaid: Double,
     val interestPaid: Double,
     val lateFeePaid: Double,
+    val allocationMode: String? = null,
+    val targetInstallmentId: Long? = null,
+    val targetInstallmentNumber: Int? = null,
+    val excessAction: String? = null,
+    val capitalPrepaid: Double = 0.0,
+    val changeGiven: Double = 0.0,
     val previousBalance: Double,
     val newBalance: Double,
     val paymentMethod: String,
@@ -734,8 +740,8 @@ enum class AllocationMode(
     val label: String,
     val shortLabel: String,
 ) {
-    Auto("auto", "Cap. + Int. + Mora", "Todo"),
-    PrincipalAndInterest("principal_and_interest", "Pagar cuota programada", "Cuota"),
+    Auto("auto", "Automático", "Todo"),
+    PrincipalAndInterest("principal_and_interest", "Capital + interés", "Cuota"),
     PrincipalOnly("principal_only", "Solo capital", "Capital"),
     InterestOnly("interest_only", "Solo interés", "Interés"),
 
@@ -744,5 +750,5 @@ enum class AllocationMode(
      * capital (campo `capital_prepayment_amount`). El sobrante NO se reparte en
      * cuotas futuras.
      */
-    CurrentPlusCapital("current_plus_capital", "Interés actual + abono a capital", "Int.+Cap."),
+    CurrentPlusCapital("current_plus_capital", "Cuota + capital", "Int.+Cap."),
 }

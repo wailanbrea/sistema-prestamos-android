@@ -771,21 +771,11 @@ private fun RegisterPaymentDialog(
     var allocationMode by remember { mutableStateOf(AllocationMode.PrincipalAndInterest) }
 
     val isCapitalPrepaymentMode = allocationMode == AllocationMode.CurrentPlusCapital
-    val currentChargeAmount = nextCollectibleInstallment?.let { installment ->
-        if (installment.pendingPrincipal <= 0.01 && installment.pendingInterest > 0) {
-            installment.pendingLateFee + installment.pendingInterest
-        } else {
-            installment.pendingAmount
-        }
-    } ?: 0.0
-    val suggestedCapital = nextCollectibleInstallment?.let { installment ->
-        val principalCoveredByCurrentCharge = if (installment.pendingPrincipal <= 0.01 && installment.pendingInterest > 0) {
-            0.0
-        } else {
-            installment.pendingPrincipal
-        }
-        (loan.remainingBalance - principalCoveredByCurrentCharge).coerceAtLeast(0.0)
-    } ?: 0.0
+    val currentChargeAmount = nextCollectibleInstallment
+        ?.let { installment -> installment.pendingLateFee + installment.pendingInterest }
+        ?.coerceAtLeast(0.0)
+        ?: 0.0
+    val suggestedCapital = loan.remainingBalance.coerceAtLeast(0.0)
     val parsedCapital = capitalText.toDoubleOrNull()
     val parsedAmount = if (isCapitalPrepaymentMode) {
         parsedCapital?.let { currentChargeAmount + it }
@@ -839,7 +829,7 @@ private fun RegisterPaymentDialog(
                     onValueChange = { if (!isCapitalPrepaymentMode) amount = it },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isCapitalPrepaymentMode,
-                    label = { Text(if (isCapitalPrepaymentMode) "Interés actual de la cuota" else "Monto a cobrar") },
+                    label = { Text(if (isCapitalPrepaymentMode) "Interés/mora actual de la cuota" else "Monto a cobrar") },
                     singleLine = true,
                     isError = amountError != null && !isCapitalPrepaymentMode,
                     supportingText = {
@@ -1590,6 +1580,13 @@ private fun LoanPaymentRow(
                         style = MaterialTheme.typography.labelSmall,
                         color = Secondary,
                     )
+
+                    Text(
+                        text = "Tipo aplicado: ${paymentAllocationModeLabel(payment.allocationMode)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = TextVariant,
+                    )
                 }
             }
 
@@ -1605,7 +1602,7 @@ private fun LoanPaymentRow(
                 )
 
                 Text(
-                    text = payment.status.uppercase(),
+                    text = paymentStatusLabel(payment.status),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = if (isCancelled) Error else Success,
