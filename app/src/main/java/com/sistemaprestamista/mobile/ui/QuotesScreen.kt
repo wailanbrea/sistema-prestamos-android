@@ -335,15 +335,15 @@ internal fun QuoteFormScreen(
             )
 
             FormField(value = amount, onValueChange = { amount = it }, label = "Monto a prestar *", keyboardType = KeyboardType.Decimal)
-            val interestLabel = if (calculationMethod.first == "personalized") "Monto de cuota (RD$) *" else "Tasa de interés (%) *"
+            val interestLabel = if (calculationMethod.first == "personalized") "Interés por cuota (RD$) *" else "Tasa de interés (%) *"
             FormField(value = interestRate, onValueChange = { interestRate = it }, label = interestLabel, keyboardType = KeyboardType.Decimal)
             if (calculationMethod.first == "personalized") {
                 val p = amount.toDoubleOrNull() ?: 0.0
                 val t = termQuantity.toIntOrNull() ?: 0
                 val c = interestRate.toDoubleOrNull() ?: 0.0
                 if (p > 0.0 && t > 0 && c > 0.0) {
-                    val r = ((c / p) - (1.0 / t)) * 100.0
-                    val totInt = (c * t) - p
+                    val r = (c / p) * 100.0
+                    val totInt = c * t
                     val totRate = (totInt / p) * 100.0
                     val rStr = String.format(java.util.Locale.US, "%.4f", java.lang.Double.max(0.0, r))
                     val totRateStr = String.format(java.util.Locale.US, "%.2f", java.lang.Double.max(0.0, totRate))
@@ -385,9 +385,8 @@ internal fun QuoteFormScreen(
             onClick = {
                 val p = parsedAmount ?: return@Button
                 val rawRate = interestRate.toDoubleOrNull() ?: 0.0
-                val t = parsedTerm ?: return@Button
-                val finalInterestRate = if (calculationMethod.first == "personalized" && p > 0.0 && t > 0) {
-                    ((rawRate / p) - (1.0 / t)) * 100.0
+                val finalInterestRate = if (calculationMethod.first == "personalized" && p > 0.0) {
+                    (rawRate / p) * 100.0
                 } else {
                     rawRate
                 }

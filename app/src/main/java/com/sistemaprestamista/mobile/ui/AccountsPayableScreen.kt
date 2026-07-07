@@ -320,10 +320,7 @@ internal fun AccountPayableFormScreen(
     var interest by remember(existing?.summary?.id) {
         val initialInterest = existing?.summary?.let { summary ->
             if (summary.calculationMethod == "personalized") {
-                val p = summary.principalAmount
-                val t = summary.termQuantity
-                val r = summary.interestRate
-                ((p / t) + p * (r / 100.0)).toPlainText()
+                (summary.principalAmount * (summary.interestRate / 100.0)).toPlainText()
             } else {
                 summary.interestRate.toPlainText()
             }
@@ -387,15 +384,15 @@ internal fun AccountPayableFormScreen(
         }
         item { DecimalField("Monto principal", principal) { principal = it } }
         item {
-            val interestLabel = if (method == "personalized") "Monto de cuota ($currency)" else "Tasa (%)"
+            val interestLabel = if (method == "personalized") "Interés por cuota ($currency)" else "Tasa (%)"
             DecimalField(interestLabel, interest) { interest = it }
             if (method == "personalized") {
                 val p = principal.toDoubleOrNull() ?: 0.0
                 val t = terms.toIntOrNull() ?: 0
                 val c = interest.toDoubleOrNull() ?: 0.0
                 if (p > 0.0 && t > 0 && c > 0.0) {
-                    val r = ((c / p) - (1.0 / t)) * 100.0
-                    val totInt = (c * t) - p
+                    val r = (c / p) * 100.0
+                    val totInt = c * t
                     val totRate = (totInt / p) * 100.0
                     val rStr = String.format(java.util.Locale.US, "%.4f", java.lang.Double.max(0.0, r))
                     val totRateStr = String.format(java.util.Locale.US, "%.2f", java.lang.Double.max(0.0, totRate))
@@ -473,9 +470,8 @@ internal fun AccountPayableFormScreen(
                 onClick = {
                     val p = principal.toDouble()
                     val rawRate = interest.toDouble()
-                    val t = terms.toInt()
-                    val finalInterestRate = if (method == "personalized" && p > 0.0 && t > 0) {
-                        ((rawRate / p) - (1.0 / t)) * 100.0
+                    val finalInterestRate = if (method == "personalized" && p > 0.0) {
+                        (rawRate / p) * 100.0
                     } else {
                         rawRate
                     }
