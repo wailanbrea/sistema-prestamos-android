@@ -100,7 +100,10 @@ internal fun LoanEditScreen(
     var principalAmount by remember { mutableStateOf(detail.summary.principalAmount.toString()) }
     val initialInterestValue = remember(detail) {
         if (detail.calculationMethod == "personalized") {
-            (detail.summary.principalAmount * (detail.interestRate / 100.0)).toString()
+            val p = detail.summary.principalAmount
+            val t = detail.termQuantity
+            val r = detail.interestRate
+            ((p / t) + p * (r / 100.0)).toString()
         } else {
             detail.interestRate.toString()
         }
@@ -242,8 +245,26 @@ internal fun LoanEditScreen(
 
         FormSectionCard(title = "Condiciones del prestamo") {
             FormField(value = principalAmount, onValueChange = { principalAmount = it }, label = "Monto principal *", keyboardType = KeyboardType.Decimal)
-            val interestLabel = if (calculationMethod.first == "personalized") "Interés por cuota (${currencyState.first}) *" else "Tasa de interes (%) *"
+            val interestLabel = if (calculationMethod.first == "personalized") "Monto de cuota (${currencyState.first}) *" else "Tasa de interes (%) *"
             FormField(value = interestRate, onValueChange = { interestRate = it }, label = interestLabel, keyboardType = KeyboardType.Decimal)
+            if (calculationMethod.first == "personalized") {
+                val p = principalAmount.toDoubleOrNull() ?: 0.0
+                val t = termQuantity.toIntOrNull() ?: 0
+                val c = interestRate.toDoubleOrNull() ?: 0.0
+                if (p > 0.0 && t > 0 && c > 0.0) {
+                    val r = ((c / p) - (1.0 / t)) * 100.0
+                    val totInt = (c * t) - p
+                    val totRate = (totInt / p) * 100.0
+                    val rStr = String.format(java.util.Locale.US, "%.4f", java.lang.Double.max(0.0, r))
+                    val totRateStr = String.format(java.util.Locale.US, "%.2f", java.lang.Double.max(0.0, totRate))
+                    androidx.compose.material3.Text(
+                        text = "Tasa: $rStr% por cuota ($totRateStr% total)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                    )
+                }
+            }
             FormField(value = termQuantity, onValueChange = { termQuantity = it }, label = "Numero de cuotas *", keyboardType = KeyboardType.Number)
 
             OptionSelector(
@@ -291,8 +312,9 @@ internal fun LoanEditScreen(
             onClick = {
                 val p = principalAmount.toDoubleOrNull() ?: 0.0
                 val rawRate = interestRate.toDoubleOrNull() ?: 0.0
-                val finalInterestRate = if (calculationMethod.first == "personalized" && p > 0.0) {
-                    (rawRate / p) * 100.0
+                val t = termQuantity.toIntOrNull() ?: 0
+                val finalInterestRate = if (calculationMethod.first == "personalized" && p > 0.0 && t > 0) {
+                    ((rawRate / p) - (1.0 / t)) * 100.0
                 } else {
                     rawRate
                 }
