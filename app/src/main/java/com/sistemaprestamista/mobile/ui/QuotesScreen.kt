@@ -53,6 +53,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.LoanQuote
+import com.sistemaprestamista.mobile.ui.components.LocalEnabledCalculationMethods
+import com.sistemaprestamista.mobile.ui.components.filterEnabled
 import com.sistemaprestamista.mobile.ui.components.formatPaymentFrequency
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
 
@@ -88,7 +90,9 @@ private val CalculationMethods = listOf(
     "fixed_installment" to "Cuota fija",
     "capital_plus_interest" to "Capital + interés",
     "interest_only" to "Solo interés",
+    "german_amortization" to "Amortización alemana",
     "french_amortization" to "Amortización francesa",
+    "personalized" to "Personalizado",
 )
 
 // ---------------------------------------------------------------------------
@@ -296,7 +300,8 @@ internal fun QuoteFormScreen(
     var interestRate by remember { mutableStateOf("") }
     var interestType by remember { mutableStateOf(InterestTypes.first()) }
     var frequency by remember { mutableStateOf(Frequencies[1]) }
-    var calculationMethod by remember { mutableStateOf(CalculationMethods.first()) }
+    val availableCalculationMethods = CalculationMethods.filterEnabled(LocalEnabledCalculationMethods.current)
+    var calculationMethod by remember { mutableStateOf(availableCalculationMethods.first()) }
     var termQuantity by remember { mutableStateOf("") }
 
     val clientOptions = remember(clients) {
@@ -330,7 +335,8 @@ internal fun QuoteFormScreen(
             )
 
             FormField(value = amount, onValueChange = { amount = it }, label = "Monto a prestar *", keyboardType = KeyboardType.Decimal)
-            FormField(value = interestRate, onValueChange = { interestRate = it }, label = "Tasa de interés (%) *", keyboardType = KeyboardType.Decimal)
+            val interestLabel = if (calculationMethod.first == "personalized") "Interés por cuota (RD$) *" else "Tasa de interés (%) *"
+            FormField(value = interestRate, onValueChange = { interestRate = it }, label = interestLabel, keyboardType = KeyboardType.Decimal)
             FormField(value = termQuantity, onValueChange = { termQuantity = it }, label = "Cantidad de cuotas *", keyboardType = KeyboardType.Number)
         }
 
@@ -351,7 +357,7 @@ internal fun QuoteFormScreen(
 
             OptionSelector(
                 label = "Método de cálculo",
-                options = CalculationMethods,
+                options = availableCalculationMethods,
                 selected = calculationMethod,
                 onSelected = { calculationMethod = it },
             )
@@ -359,10 +365,17 @@ internal fun QuoteFormScreen(
 
         Button(
             onClick = {
+                val p = parsedAmount ?: return@Button
+                val rawRate = interestRate.toDoubleOrNull() ?: 0.0
+                val finalInterestRate = if (calculationMethod.first == "personalized" && p > 0.0) {
+                    (rawRate / p) * 100.0
+                } else {
+                    rawRate
+                }
                 onSubmit(
                     clientOption.first.toLongOrNull(),
-                    parsedAmount ?: return@Button,
-                    parsedRate ?: return@Button,
+                    p,
+                    finalInterestRate,
                     interestType.first,
                     frequency.first,
                     calculationMethod.first,

@@ -9,9 +9,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -93,10 +95,56 @@ fun LoadingSplash() {
 }
 
 /**
+ * Envuelve el contenido de una pantalla con gesto "deslizar para refrescar".
+ * `isRefreshing` normalmente es el isLoading global mientras corre onRefresh.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RefreshableContent(
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxSize(),
+    ) {
+        content()
+    }
+}
+
+/**
  * Código de moneda activo (RD$/US$), provisto en la raíz de la app desde la
  * configuración de la empresa. Las pantallas leen este valor vía rememberCurrency().
  */
 val LocalCurrencyCode = staticCompositionLocalOf { "RD\$" }
+
+/**
+ * Métodos de cálculo habilitados por la empresa (Configuración web), provistos
+ * en la raíz desde el perfil. `null` = backend viejo sin esta configuración →
+ * las pantallas muestran todos los métodos.
+ */
+val LocalEnabledCalculationMethods = staticCompositionLocalOf<List<String>?> { null }
+
+/** Modos de reparto de pago habilitados. `null` = backend viejo → todos. */
+val LocalEnabledAllocationModes = staticCompositionLocalOf<List<String>?> { null }
+
+/**
+ * Filtra un catálogo de opciones (código → etiqueta) según la lista habilitada.
+ * Mantiene `keep` (p. ej. el valor actual de un préstamo existente) aunque esté
+ * deshabilitado, para no romper la edición. Si el filtro dejara la lista vacía,
+ * devuelve el catálogo completo.
+ */
+fun List<Pair<String, String>>.filterEnabled(
+    enabled: List<String>?,
+    keep: String? = null,
+): List<Pair<String, String>> {
+    if (enabled == null) return this
+    val filtered = filter { it.first in enabled || it.first == keep }
+    return filtered.ifEmpty { this }
+}
 
 /**
  * Formatea montos anteponiendo el símbolo real de la moneda de la empresa

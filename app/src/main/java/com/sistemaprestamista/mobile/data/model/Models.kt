@@ -6,6 +6,13 @@ data class Company(
     val status: String,
     /** Moneda por defecto de la empresa (RD$/US$) para formatear montos en la app. */
     val defaultCurrency: String = "RD$",
+    /**
+     * Métodos de cálculo habilitados por la empresa (Configuración web).
+     * `null` = backend anterior a esta configuración → mostrar todos.
+     */
+    val enabledLoanCalculationMethods: List<String>? = null,
+    /** Modos de reparto de pago habilitados. `null` = backend viejo → todos. */
+    val enabledPaymentAllocationModes: List<String>? = null,
 )
 
 data class UserProfile(
@@ -193,6 +200,12 @@ data class LoanSummary(
     val remainingBalance: Double,
     val paymentFrequency: String,
     val status: String,
+    /** Cuotas ya vencidas y no saldadas. Solo lo envían los listados (0 en backends viejos). */
+    val overdueInstallmentsCount: Int = 0,
+    /** Deuda vencida acumulada (cuotas + mora) sin contar la cuota de hoy. */
+    val overdueAmountDue: Double = 0.0,
+    /** Lo que el cliente debe pagar hoy: vencidas + la cuota que vence hoy. */
+    val amountDueToday: Double = 0.0,
 )
 
 data class LoanFinancialSummary(

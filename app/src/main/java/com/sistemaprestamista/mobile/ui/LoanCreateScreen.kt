@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.ClientSummary
 import com.sistemaprestamista.mobile.data.model.CollectorOption
 import com.sistemaprestamista.mobile.data.model.NewLoanInput
+import com.sistemaprestamista.mobile.ui.components.LocalEnabledCalculationMethods
+import com.sistemaprestamista.mobile.ui.components.filterEnabled
 import java.time.LocalDate
 
 private val ScreenBackground = Color(0xFFF4F7FB)
@@ -57,7 +59,9 @@ private val CalculationMethods = listOf(
     "fixed_installment" to "Cuota fija",
     "capital_plus_interest" to "Capital + interés",
     "interest_only" to "Solo interés",
+    "german_amortization" to "Amortización alemana",
     "french_amortization" to "Amortización francesa",
+    "personalized" to "Personalizado",
 )
 
 private val LateFeeTypes = listOf(
@@ -87,7 +91,8 @@ internal fun LoanCreateScreen(
     var interestRate by remember { mutableStateOf("") }
     var interestType by remember { mutableStateOf(InterestTypes.first()) }
     var paymentFrequency by remember { mutableStateOf(PaymentFrequencies.last()) }
-    var calculationMethod by remember { mutableStateOf(CalculationMethods[1]) }
+    val availableCalculationMethods = CalculationMethods.filterEnabled(LocalEnabledCalculationMethods.current)
+    var calculationMethod by remember { mutableStateOf(availableCalculationMethods.getOrElse(1) { availableCalculationMethods.first() }) }
     var termQuantity by remember { mutableStateOf("") }
     var lateFeeType by remember { mutableStateOf(LateFeeTypes.first()) }
     var lateFeeValue by remember { mutableStateOf("") }
@@ -143,7 +148,8 @@ internal fun LoanCreateScreen(
 
         FormSectionCard(title = "Condiciones del préstamo") {
             FormField(value = principalAmount, onValueChange = { principalAmount = it }, label = "Monto principal *", keyboardType = KeyboardType.Decimal)
-            FormField(value = interestRate, onValueChange = { interestRate = it }, label = "Tasa de interés (%) *", keyboardType = KeyboardType.Decimal)
+            val interestLabel = if (calculationMethod.first == "personalized") "Interés por cuota (${currency.first}) *" else "Tasa de interés (%) *"
+            FormField(value = interestRate, onValueChange = { interestRate = it }, label = interestLabel, keyboardType = KeyboardType.Decimal)
             FormField(value = termQuantity, onValueChange = { termQuantity = it }, label = "Número de cuotas *", keyboardType = KeyboardType.Number)
 
             OptionSelector(
@@ -162,7 +168,7 @@ internal fun LoanCreateScreen(
 
             OptionSelector(
                 label = "Método de cálculo",
-                options = CalculationMethods,
+                options = availableCalculationMethods,
                 selected = calculationMethod,
                 onSelected = { calculationMethod = it },
             )
@@ -198,13 +204,20 @@ internal fun LoanCreateScreen(
         Button(
             onClick = {
                 val client = selectedClient ?: return@Button
+                val p = principalAmount.toDoubleOrNull() ?: 0.0
+                val rawRate = interestRate.toDoubleOrNull() ?: 0.0
+                val finalInterestRate = if (calculationMethod.first == "personalized" && p > 0.0) {
+                    (rawRate / p) * 100.0
+                } else {
+                    rawRate
+                }
                 onSubmit(
                     NewLoanInput(
                         clientId = client.id,
                         collectorId = selectedCollector?.id,
                         currency = currency.first,
-                        principalAmount = principalAmount.toDoubleOrNull() ?: 0.0,
-                        interestRate = interestRate.toDoubleOrNull() ?: 0.0,
+                        principalAmount = p,
+                        interestRate = finalInterestRate,
                         interestType = interestType.first,
                         paymentFrequency = paymentFrequency.first,
                         calculationMethod = calculationMethod.first,

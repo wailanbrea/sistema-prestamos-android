@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.CollectorOption
 import com.sistemaprestamista.mobile.data.model.LoanDetail
 import com.sistemaprestamista.mobile.data.model.UpdateLoanInput
+import com.sistemaprestamista.mobile.ui.components.LocalEnabledCalculationMethods
+import com.sistemaprestamista.mobile.ui.components.filterEnabled
 
 private val ScreenBackground = Color(0xFFF4F7FB)
 private val PrimaryEdit = Color(0xFF00386C)
@@ -59,7 +61,9 @@ private val CalculationMethods = listOf(
     "fixed_installment" to "Cuota fija",
     "capital_plus_interest" to "Capital + interés",
     "interest_only" to "Solo interés",
+    "german_amortization" to "Amortización alemana",
     "french_amortization" to "Amortización francesa",
+    "personalized" to "Personalizado",
 )
 
 private val LateFeeTypes = listOf(
@@ -94,15 +98,28 @@ internal fun LoanEditScreen(
 
     // Financial fields (only editable if no valid payments)
     var principalAmount by remember { mutableStateOf(detail.summary.principalAmount.toString()) }
-    var interestRate by remember { mutableStateOf(detail.interestRate.toString()) }
+    val initialInterestValue = remember(detail) {
+        if (detail.calculationMethod == "personalized") {
+            (detail.summary.principalAmount * (detail.interestRate / 100.0)).toString()
+        } else {
+            detail.interestRate.toString()
+        }
+    }
+    var interestRate by remember { mutableStateOf(initialInterestValue) }
     var interestType by remember {
         mutableStateOf(InterestTypes.firstOrNull { it.first == detail.interestType } ?: InterestTypes.first())
     }
     var paymentFrequency by remember {
         mutableStateOf(PaymentFrequencies.firstOrNull { it.first == detail.summary.paymentFrequency } ?: PaymentFrequencies.last())
     }
+    // El método actual del préstamo se mantiene visible aunque la empresa lo haya
+    // deshabilitado (el backend también lo acepta al editar).
+    val availableCalculationMethods = CalculationMethods.filterEnabled(
+        LocalEnabledCalculationMethods.current,
+        keep = detail.calculationMethod,
+    )
     var calculationMethod by remember {
-        mutableStateOf(CalculationMethods.firstOrNull { it.first == detail.calculationMethod } ?: CalculationMethods[1])
+        mutableStateOf(availableCalculationMethods.firstOrNull { it.first == detail.calculationMethod } ?: availableCalculationMethods.first())
     }
     var termQuantity by remember { mutableStateOf(detail.termQuantity.toString()) }
     var lateFeeType by remember {
@@ -225,7 +242,8 @@ internal fun LoanEditScreen(
 
         FormSectionCard(title = "Condiciones del prestamo") {
             FormField(value = principalAmount, onValueChange = { principalAmount = it }, label = "Monto principal *", keyboardType = KeyboardType.Decimal)
-            FormField(value = interestRate, onValueChange = { interestRate = it }, label = "Tasa de interes (%) *", keyboardType = KeyboardType.Decimal)
+            val interestLabel = if (calculationMethod.first == "personalized") "Interés por cuota (${currencyState.first}) *" else "Tasa de interes (%) *"
+            FormField(value = interestRate, onValueChange = { interestRate = it }, label = interestLabel, keyboardType = KeyboardType.Decimal)
             FormField(value = termQuantity, onValueChange = { termQuantity = it }, label = "Numero de cuotas *", keyboardType = KeyboardType.Number)
 
             OptionSelector(
@@ -242,7 +260,7 @@ internal fun LoanEditScreen(
             )
             OptionSelector(
                 label = "Metodo de calculo",
-                options = CalculationMethods,
+                options = availableCalculationMethods,
                 selected = calculationMethod,
                 onSelected = { calculationMethod = it },
             )
@@ -271,6 +289,13 @@ internal fun LoanEditScreen(
 
         Button(
             onClick = {
+                val p = principalAmount.toDoubleOrNull() ?: 0.0
+                val rawRate = interestRate.toDoubleOrNull() ?: 0.0
+                val finalInterestRate = if (calculationMethod.first == "personalized" && p > 0.0) {
+                    (rawRate / p) * 100.0
+                } else {
+                    rawRate
+                }
                 onSubmit(
                     UpdateLoanInput(
                         collectorId = selectedCollector?.id,
@@ -278,8 +303,8 @@ internal fun LoanEditScreen(
                         guaranteeDescription = guaranteeDescription.trim().takeIf { it.isNotBlank() },
                         notes = notes.trim().takeIf { it.isNotBlank() },
                         allowsCapitalPrepayment = allowsCapitalPrepayment,
-                        principalAmount = principalAmount.toDoubleOrNull(),
-                        interestRate = interestRate.toDoubleOrNull(),
+                        principalAmount = p,
+                        interestRate = finalInterestRate,
                         interestType = interestType.first,
                         paymentFrequency = paymentFrequency.first,
                         calculationMethod = calculationMethod.first,

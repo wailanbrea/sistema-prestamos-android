@@ -57,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.ClientSummary
+import com.sistemaprestamista.mobile.ui.components.RefreshableContent
 
 private val ScreenBackground = Color(0xFFF4F7FB)
 private val CardBackground = Color(0xFFFFFFFF)
@@ -87,6 +88,7 @@ internal fun ClientsScreen(
     generatedLinkWhatsappUrl: String? = null,
     generatedLinkFormUrl: String? = null,
     onDismissGeneratedLink: () -> Unit = {},
+    onRefresh: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
@@ -139,6 +141,10 @@ internal fun ClientsScreen(
     val hasFabs = onCreateClient != null || onGenerateRegistrationLink != null
     val fabCount = listOfNotNull(onCreateClient, onGenerateRegistrationLink).size
 
+    RefreshableContent(
+        isRefreshing = isLoading,
+        onRefresh = onRefresh,
+    ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -216,6 +222,7 @@ internal fun ClientsScreen(
                 )
             }
         }
+    }
     }
 }
 

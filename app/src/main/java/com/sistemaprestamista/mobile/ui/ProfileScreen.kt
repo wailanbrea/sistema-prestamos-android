@@ -38,8 +38,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import com.sistemaprestamista.mobile.data.model.UserProfile
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
+import com.sistemaprestamista.mobile.update.AppUpdater
+import com.sistemaprestamista.mobile.update.UpdateCheck
+import com.sistemaprestamista.mobile.update.UpdateInfo
+import kotlinx.coroutines.launch
 
 private val ScreenBackground = Color(0xFFF9F9FF)
 private val CardBackground = Color(0xFFFFFFFF)
@@ -97,11 +112,135 @@ internal fun ProfileScreen(
             onLogout = onLogout,
         )
 
+        AppUpdateCard()
+
         Text(
-            text = "FinAdmin Mobile v2.4.0",
+            text = "Sistema Prestamista v${AppUpdater.currentVersionName}",
             style = MaterialTheme.typography.labelSmall,
             color = TextVariant.copy(alpha = 0.45f),
         )
+    }
+}
+
+private sealed interface UpdateDialogState {
+    data class Available(val info: UpdateInfo) : UpdateDialogState
+    data object UpToDate : UpdateDialogState
+    data class Failed(val message: String) : UpdateDialogState
+}
+
+@Composable
+private fun AppUpdateCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var checking by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf<Int?>(null) }
+    var dialog by remember { mutableStateOf<UpdateDialogState?>(null) }
+
+    FilledTonalButton(
+        onClick = {
+            if (checking || downloadProgress != null) return@FilledTonalButton
+            checking = true
+            scope.launch {
+                dialog = when (val result = AppUpdater.check()) {
+                    is UpdateCheck.Available -> UpdateDialogState.Available(result.info)
+                    is UpdateCheck.UpToDate -> UpdateDialogState.UpToDate
+                    is UpdateCheck.Failed -> UpdateDialogState.Failed(result.message)
+                }
+                checking = false
+            }
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = SecondaryContainer,
+            contentColor = OnSecondaryContainer,
+        ),
+    ) {
+        if (checking) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+                color = Primary,
+            )
+        } else {
+            Icon(Icons.Outlined.SystemUpdate, contentDescription = null)
+        }
+        Spacer(Modifier.size(10.dp))
+        Text(
+            text = if (checking) "Buscando…" else "Buscar actualización",
+            fontWeight = FontWeight.Bold,
+        )
+    }
+
+    when (val current = dialog) {
+        is UpdateDialogState.UpToDate -> AlertDialog(
+            onDismissRequest = { dialog = null },
+            confirmButton = { TextButton(onClick = { dialog = null }) { Text("Aceptar") } },
+            title = { Text("Todo al día") },
+            text = { Text("Ya tienes la última versión (v${AppUpdater.currentVersionName}).") },
+        )
+
+        is UpdateDialogState.Failed -> AlertDialog(
+            onDismissRequest = { dialog = null },
+            confirmButton = { TextButton(onClick = { dialog = null }) { Text("Aceptar") } },
+            title = { Text("No se pudo verificar") },
+            text = { Text(current.message) },
+        )
+
+        is UpdateDialogState.Available -> {
+            val progress = downloadProgress
+            AlertDialog(
+                onDismissRequest = { if (progress == null) dialog = null },
+                confirmButton = {
+                    if (progress == null) {
+                        TextButton(onClick = {
+                            scope.launch {
+                                try {
+                                    downloadProgress = 0
+                                    val file = AppUpdater.downloadApk(context, current.info.apkUrl) { p ->
+                                        downloadProgress = p
+                                    }
+                                    downloadProgress = null
+                                    dialog = null
+                                    if (AppUpdater.canInstall(context)) {
+                                        AppUpdater.installApk(context, file)
+                                    } else {
+                                        AppUpdater.openInstallPermissionSettings(context)
+                                    }
+                                } catch (e: Exception) {
+                                    downloadProgress = null
+                                    dialog = UpdateDialogState.Failed(e.message ?: "Error al descargar")
+                                }
+                            }
+                        }) { Text("Descargar e instalar") }
+                    }
+                },
+                dismissButton = {
+                    if (progress == null) {
+                        TextButton(onClick = { dialog = null }) { Text("Ahora no") }
+                    }
+                },
+                title = { Text("Nueva versión ${current.info.versionName}") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (current.info.notes.isNotBlank()) {
+                            Text(current.info.notes)
+                        }
+                        if (progress != null) {
+                            Text("Descargando… $progress%")
+                            LinearProgressIndicator(
+                                progress = { progress / 100f },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                },
+            )
+        }
+
+        null -> Unit
     }
 }
 

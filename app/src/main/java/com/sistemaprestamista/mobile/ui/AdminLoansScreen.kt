@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.LoanSummary
+import com.sistemaprestamista.mobile.ui.components.RefreshableContent
 import com.sistemaprestamista.mobile.ui.components.formatPaymentFrequency
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
 
@@ -67,23 +68,38 @@ internal fun AdminLoansScreen(
     onLoadMore: () -> Unit = {},
     includePaid: Boolean = false,
     onIncludePaidChange: (Boolean) -> Unit = {},
+    searchQuery: String = "",
+    onSearchQueryChange: ((String) -> Unit)? = null,
     onOpenQuotes: (() -> Unit)? = null,
     onCreateLoan: (() -> Unit)? = null,
     onSendAccountStatement: ((Long) -> Unit)? = null,
     isSharingDocument: Boolean = false,
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
 ) {
-    var query by remember { mutableStateOf("") }
+    // Con búsqueda remota el texto vive en el ViewModel (consulta al backend por
+    // número, cliente, teléfono o cédula); sin ella se filtra localmente.
+    var localQuery by remember { mutableStateOf("") }
+    val query = if (onSearchQueryChange != null) searchQuery else localQuery
     val currency = rememberCurrency()
     val listState = rememberLazyListState()
 
-    val filtered = remember(loans, query) {
-        val q = query.trim().lowercase()
-        if (q.isBlank()) loans else loans.filter {
-            it.loanNumber.lowercase().contains(q) ||
-                it.client?.fullName.orEmpty().lowercase().contains(q)
+    val filtered = remember(loans, query, onSearchQueryChange) {
+        if (onSearchQueryChange != null) {
+            loans
+        } else {
+            val q = query.trim().lowercase()
+            if (q.isBlank()) loans else loans.filter {
+                it.loanNumber.lowercase().contains(q) ||
+                    it.client?.fullName.orEmpty().lowercase().contains(q)
+            }
         }
     }
 
+    RefreshableContent(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+    ) {
     Box(modifier = Modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
@@ -137,9 +153,11 @@ internal fun AdminLoansScreen(
         item {
             OutlinedTextField(
                 value = query,
-                onValueChange = { query = it },
+                onValueChange = { value ->
+                    if (onSearchQueryChange != null) onSearchQueryChange(value) else localQuery = value
+                },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Buscar por número o cliente...", color = Outline) },
+                placeholder = { Text("Buscar por número, cliente, teléfono o cédula...", color = Outline) },
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = Outline) },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
@@ -180,18 +198,38 @@ internal fun AdminLoansScreen(
 
         if (filtered.isEmpty()) {
             item {
-                Text(
-                    text = "No hay préstamos para mostrar.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextMuted,
-                    modifier = Modifier.padding(8.dp),
-                )
+                // Mientras el backend responde la búsqueda no hay resultados aún:
+                // mostrar carga en vez de un "no hay préstamos" engañoso.
+                if (isLoadingMore) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = Primary)
+                        Text(
+                            text = "  Buscando préstamos...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextMuted,
+                        )
+                    }
+                } else {
+                    Text(
+                        text = if (query.isBlank()) "No hay préstamos para mostrar." else "Sin resultados para \"${query.trim()}\".",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextMuted,
+                        modifier = Modifier.padding(8.dp),
+                    )
+                }
             }
         } else {
             items(filtered, key = { it.id }) { loan ->
                 LoanRowCard(
                     loan = loan,
                     amount = currency.format(loan.remainingBalance),
+                    dueTodayText = if (loan.amountDueToday > 0.0) currency.format(loan.amountDueToday) else null,
                     onOpenLoan = onOpenLoan,
                     onSendAccountStatement = onSendAccountStatement,
                     isSharingDocument = isSharingDocument,
@@ -230,12 +268,14 @@ internal fun AdminLoansScreen(
         )
     }
     }
+    }
 }
 
 @Composable
 private fun LoanRowCard(
     loan: LoanSummary,
     amount: String,
+    dueTodayText: String? = null,
     onOpenLoan: (Long) -> Unit,
     onSendAccountStatement: ((Long) -> Unit)? = null,
     isSharingDocument: Boolean = false,
@@ -271,6 +311,20 @@ private fun LoanRowCard(
                     color = TextMuted,
                     maxLines = 1,
                 )
+                if (dueTodayText != null) {
+                    val overdueLabel = when {
+                        loan.overdueInstallmentsCount == 1 -> "1 cuota vencida · "
+                        loan.overdueInstallmentsCount > 1 -> "${loan.overdueInstallmentsCount} cuotas vencidas · "
+                        else -> ""
+                    }
+                    Text(
+                        text = "${overdueLabel}Debe hoy $dueTodayText",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFBA1A1A),
+                        maxLines = 1,
+                    )
+                }
                 LoanStatusChip(loan.status)
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {

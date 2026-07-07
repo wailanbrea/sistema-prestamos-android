@@ -73,6 +73,8 @@ data class AppUiState(
     // Back-office / administrador
     val adminClients: List<ClientSummary> = emptyList(),
     val adminLoans: List<LoanSummary> = emptyList(),
+    // Texto de búsqueda de la cartera; se envía al backend (search) con debounce.
+    val adminLoansSearch: String = "",
     val adminLoansIncludePaid: Boolean = false,
     val adminLoansHasMore: Boolean = false,
     val adminLoansLoadedPage: Int = 1,

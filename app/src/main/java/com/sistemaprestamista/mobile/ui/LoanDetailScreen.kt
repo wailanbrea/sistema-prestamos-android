@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -69,6 +71,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.TextStyle
 import com.sistemaprestamista.mobile.data.model.AllocationMode
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.LoanDetail
@@ -144,8 +150,18 @@ internal fun LoanDetailScreen(
 
     var showPaymentDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showScheduleDialog by remember { mutableStateOf(false) }
     var actionsExpanded by remember { mutableStateOf(false) }
     var awaitingPayment by remember { mutableStateOf(false) }
+
+    if (showScheduleDialog) {
+        PaymentScheduleDialog(
+            loanNumber = loan.loanNumber,
+            installments = installments,
+            formatAmount = { currency.format(it) },
+            onDismiss = { showScheduleDialog = false },
+        )
+    }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -255,6 +271,7 @@ internal fun LoanDetailScreen(
             SectionHeader(
                 title = "Cuotas",
                 action = if (installments.isNotEmpty()) "Ver calendario" else null,
+                onAction = { showScheduleDialog = true },
             )
         }
 
@@ -1310,6 +1327,7 @@ private fun MetricText(
 private fun SectionHeader(
     title: String,
     action: String? = null,
+    onAction: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1329,8 +1347,170 @@ private fun SectionHeader(
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
                 color = Primary,
+                modifier = if (onAction != null) {
+                    Modifier
+                        .clip(CircleShape)
+                        .clickable(onClick = onAction)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                } else {
+                    Modifier
+                },
             )
         }
+    }
+}
+
+/**
+ * Calendario de pagos: cronograma compacto de todas las cuotas agrupadas por
+ * mes de vencimiento, con día, monto y estado. Es la vista rápida que abre
+ * "Ver calendario" en la sección de cuotas.
+ */
+@Composable
+private fun PaymentScheduleDialog(
+    loanNumber: String,
+    installments: List<InstallmentSummary>,
+    formatAmount: (Double) -> String,
+    onDismiss: () -> Unit,
+) {
+    val locale = java.util.Locale.forLanguageTag("es-DO")
+    val ordered = remember(installments) { installments.sortedBy { it.installmentNumber } }
+    // Agrupadas por mes de vencimiento; las cuotas sin fecha van al final.
+    val groups = remember(ordered) {
+        ordered.groupBy { installment ->
+            installment.dueDate
+                ?.let { raw -> runCatching { YearMonth.from(LocalDate.parse(raw.take(10))) }.getOrNull() }
+        }.toList().sortedWith(compareBy(nullsLast()) { it.first })
+    }
+    val paidCount = ordered.count { it.status.trim().lowercase() == "paid" }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+        ) {
+            Column(modifier = Modifier.padding(top = 20.dp, bottom = 8.dp)) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = "Calendario de pagos",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMain,
+                    )
+                    Text(
+                        text = "$loanNumber · $paidCount de ${ordered.size} cuotas pagadas",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextVariant,
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 460.dp),
+                    contentPadding = PaddingValues(horizontal = 22.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    groups.forEach { (month, monthInstallments) ->
+                        item(key = month?.toString() ?: "sin-fecha") {
+                            Text(
+                                text = month?.let { m ->
+                                    m.month.getDisplayName(TextStyle.FULL, locale)
+                                        .replaceFirstChar { it.uppercase(locale) } + " ${m.year}"
+                                } ?: "Sin fecha",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Primary,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+
+                        items(monthInstallments, key = { it.id }) { installment ->
+                            ScheduleInstallmentRow(
+                                installment = installment,
+                                formatAmount = formatAmount,
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cerrar", fontWeight = FontWeight.Bold, color = Primary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleInstallmentRow(
+    installment: InstallmentSummary,
+    formatAmount: (Double) -> String,
+) {
+    val status = installment.status.trim().lowercase()
+    val statusColor = when {
+        status == "paid" -> Success
+        status == "partial" -> Orange
+        status == "cancelled" || status == "canceled" -> Outline
+        installment.daysLate > 0 || status == "late" || status == "overdue" -> Error
+        else -> TextVariant
+    }
+    val day = installment.dueDate
+        ?.let { raw -> runCatching { LocalDate.parse(raw.take(10)).dayOfMonth }.getOrNull() }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(SurfaceContainerLow),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = day?.toString() ?: "—",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = Primary,
+            )
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Cuota ${installment.installmentNumber}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = TextMain,
+            )
+            Text(
+                text = installmentStatusLabel(installment.status) +
+                    if (installment.daysLate > 0 && status != "paid") " · ${installment.daysLate} días" else "",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = statusColor,
+            )
+        }
+
+        Text(
+            text = formatAmount(installment.installmentAmount),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = TextMain,
+        )
     }
 }
 

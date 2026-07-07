@@ -14,8 +14,10 @@ import com.sistemaprestamista.mobile.data.model.RoutePoint
 import com.sistemaprestamista.mobile.data.pending.PendingPayment
 import com.sistemaprestamista.mobile.data.remote.ApiException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +37,9 @@ class MainViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
+
+    /** Debounce de la búsqueda de préstamos contra el backend. */
+    private var adminLoansSearchJob: Job? = null
 
     init {
         prepareSession()
@@ -1951,7 +1956,13 @@ class MainViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingMoreAdminLoans = true, errorMessage = null) }
             runCatching {
-                withContext(Dispatchers.IO) { repository.adminLoansPage(state.adminLoansLoadedPage + 1, includePaid = state.adminLoansIncludePaid) }
+                withContext(Dispatchers.IO) {
+                    repository.adminLoansPage(
+                        state.adminLoansLoadedPage + 1,
+                        search = state.adminLoansSearch.takeIf { it.isNotBlank() },
+                        includePaid = state.adminLoansIncludePaid,
+                    )
+                }
             }.onSuccess { page ->
                 _uiState.update { current ->
                     val existingIds = current.adminLoans.mapTo(HashSet()) { it.id }
@@ -1959,6 +1970,43 @@ class MainViewModel(
                     current.copy(
                         isLoadingMoreAdminLoans = false,
                         adminLoans = merged,
+                        adminLoansLoadedPage = page.currentPage,
+                        adminLoansHasMore = page.hasMore,
+                    )
+                }
+            }.onFailure { throwable ->
+                _uiState.update { it.copy(isLoadingMoreAdminLoans = false, errorMessage = throwable.userMessage()) }
+            }
+        }
+    }
+
+    /**
+     * Búsqueda de la cartera contra el backend (número, cliente, teléfono o cédula).
+     * Con debounce para no disparar una petición por cada tecla; la lista se
+     * reemplaza con la página 1 de resultados del servidor.
+     */
+    fun setAdminLoansSearch(query: String) {
+        val previous = uiState.value.adminLoansSearch
+        _uiState.update { it.copy(adminLoansSearch = query) }
+        if (query.trim() == previous.trim()) return
+
+        adminLoansSearchJob?.cancel()
+        adminLoansSearchJob = viewModelScope.launch {
+            delay(350)
+            _uiState.update { it.copy(isLoadingMoreAdminLoans = true, errorMessage = null) }
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    repository.adminLoansPage(
+                        page = 1,
+                        search = query.trim().takeIf { it.isNotBlank() },
+                        includePaid = uiState.value.adminLoansIncludePaid,
+                    )
+                }
+            }.onSuccess { page ->
+                _uiState.update {
+                    it.copy(
+                        isLoadingMoreAdminLoans = false,
+                        adminLoans = page.items,
                         adminLoansLoadedPage = page.currentPage,
                         adminLoansHasMore = page.hasMore,
                     )
@@ -1982,7 +2030,13 @@ class MainViewModel(
                 )
             }
             runCatching {
-                withContext(Dispatchers.IO) { repository.adminLoansPage(page = 1, includePaid = includePaid) }
+                withContext(Dispatchers.IO) {
+                    repository.adminLoansPage(
+                        page = 1,
+                        search = state.adminLoansSearch.trim().takeIf { it.isNotBlank() },
+                        includePaid = includePaid,
+                    )
+                }
             }.onSuccess { page ->
                 _uiState.update {
                     it.copy(

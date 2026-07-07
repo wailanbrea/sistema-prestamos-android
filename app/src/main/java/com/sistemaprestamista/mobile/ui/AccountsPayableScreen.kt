@@ -53,6 +53,8 @@ import com.sistemaprestamista.mobile.data.model.CreditorSummary
 import com.sistemaprestamista.mobile.data.model.PaymentMethod
 import com.sistemaprestamista.mobile.ui.components.EmptyCard
 import com.sistemaprestamista.mobile.ui.components.LoadingSplash
+import com.sistemaprestamista.mobile.ui.components.LocalEnabledCalculationMethods
+import com.sistemaprestamista.mobile.ui.components.filterEnabled
 import com.sistemaprestamista.mobile.ui.components.MetricCard
 import com.sistemaprestamista.mobile.ui.components.MoneyFormatter
 import com.sistemaprestamista.mobile.ui.components.StatusPill
@@ -315,7 +317,16 @@ internal fun AccountPayableFormScreen(
     }
     var currency by remember(existing?.summary?.id) { mutableStateOf(existing?.summary?.currency ?: defaultCurrency) }
     var principal by remember(existing?.summary?.id) { mutableStateOf(existing?.summary?.principalAmount?.toPlainText().orEmpty()) }
-    var interest by remember(existing?.summary?.id) { mutableStateOf(existing?.summary?.interestRate?.toPlainText() ?: "10") }
+    var interest by remember(existing?.summary?.id) {
+        val initialInterest = existing?.summary?.let { summary ->
+            if (summary.calculationMethod == "personalized") {
+                (summary.principalAmount * (summary.interestRate / 100.0)).toPlainText()
+            } else {
+                summary.interestRate.toPlainText()
+            }
+        } ?: "10"
+        mutableStateOf(initialInterest)
+    }
     var terms by remember(existing?.summary?.id) { mutableStateOf(existing?.summary?.termQuantity?.toString() ?: "12") }
     var frequency by remember(existing?.summary?.id) { mutableStateOf(existing?.summary?.paymentFrequency ?: "monthly") }
     var method by remember(existing?.summary?.id) { mutableStateOf(existing?.summary?.calculationMethod ?: "french_amortization") }
@@ -372,7 +383,10 @@ internal fun AccountPayableFormScreen(
             }
         }
         item { DecimalField("Monto principal", principal) { principal = it } }
-        item { DecimalField("Tasa (%)", interest) { interest = it } }
+        item {
+            val interestLabel = if (method == "personalized") "Interés por cuota ($currency)" else "Tasa (%)"
+            DecimalField(interestLabel, interest) { interest = it }
+        }
         item { IntegerField("Cantidad de cuotas", terms) { terms = it } }
         item {
             SelectorField(
@@ -387,11 +401,13 @@ internal fun AccountPayableFormScreen(
                 calculationMethodLabel(method),
                 listOf(
                     "french_amortization" to "Amortización francesa",
+                    "german_amortization" to "Amortización alemana",
                     "flat_interest" to "Interés fijo",
                     "fixed_installment" to "Cuota fija",
                     "capital_plus_interest" to "Capital + interés",
                     "interest_only" to "Solo interés",
-                ),
+                    "personalized" to "Personalizado",
+                ).filterEnabled(LocalEnabledCalculationMethods.current, keep = existing?.summary?.calculationMethod),
             ) { method = it }
         }
         item {
@@ -434,12 +450,19 @@ internal fun AccountPayableFormScreen(
         item {
             Button(
                 onClick = {
+                    val p = principal.toDouble()
+                    val rawRate = interest.toDouble()
+                    val finalInterestRate = if (method == "personalized" && p > 0.0) {
+                        (rawRate / p) * 100.0
+                    } else {
+                        rawRate
+                    }
                     onSubmit(
                         AccountPayableInput(
                             creditorId = requireNotNull(creditorId),
                             currency = currency,
-                            principalAmount = principal.toDouble(),
-                            interestRate = interest.toDouble(),
+                            principalAmount = p,
+                            interestRate = finalInterestRate,
                             interestType = if (method == "french_amortization") "amortized" else "fixed",
                             paymentFrequency = frequency,
                             calculationMethod = method,
@@ -604,10 +627,12 @@ private fun Double.toPlainText(): String =
 
 private fun calculationMethodLabel(value: String): String = when (value) {
     "french_amortization" -> "Amortización francesa"
+    "german_amortization" -> "Amortización alemana"
     "flat_interest" -> "Interés fijo"
     "fixed_installment" -> "Cuota fija"
     "capital_plus_interest" -> "Capital + interés"
     "interest_only" -> "Solo interés"
+    "personalized" -> "Personalizado"
     else -> value
 }
 

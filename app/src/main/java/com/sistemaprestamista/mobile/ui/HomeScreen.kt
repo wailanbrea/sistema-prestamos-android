@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sistemaprestamista.mobile.data.model.DashboardSummary
 import com.sistemaprestamista.mobile.data.model.PaymentReceipt
+import com.sistemaprestamista.mobile.ui.components.RefreshableContent
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
 
 private val AppBackground = Color(0xFFF4F7FB)
@@ -66,7 +67,12 @@ internal fun HomeScreen(
     state: AppUiState,
     onOpenReceipt: () -> Unit,
     onOpenPayment: (Long) -> Unit = {},
+    onRefresh: () -> Unit = {},
 ) {
+    RefreshableContent(
+        isRefreshing = state.isLoading,
+        onRefresh = onRefresh,
+    ) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -103,6 +109,7 @@ internal fun HomeScreen(
         item {
             PaymentHistoryPreview(state.paymentHistory, onOpenPayment)
         }
+    }
     }
 }
 

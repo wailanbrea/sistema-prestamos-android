@@ -61,6 +61,8 @@ import com.sistemaprestamista.mobile.tracking.RouteTrackingForegroundService
 import androidx.compose.runtime.CompositionLocalProvider
 import com.sistemaprestamista.mobile.ui.components.LoadingSplash
 import com.sistemaprestamista.mobile.ui.components.LocalCurrencyCode
+import com.sistemaprestamista.mobile.ui.components.LocalEnabledAllocationModes
+import com.sistemaprestamista.mobile.ui.components.LocalEnabledCalculationMethods
 import com.sistemaprestamista.mobile.ui.navigation.AppDestination
 import com.sistemaprestamista.mobile.ui.navigation.AppRoutes
 
@@ -114,6 +116,8 @@ fun PrestamistaApp(
 
     CompositionLocalProvider(
         LocalCurrencyCode provides (state.user?.company?.defaultCurrency ?: "RD\$"),
+        LocalEnabledCalculationMethods provides state.user?.company?.enabledLoanCalculationMethods,
+        LocalEnabledAllocationModes provides state.user?.company?.enabledPaymentAllocationModes,
     ) {
     AuthenticatedShell(
         state = state,
@@ -138,6 +142,7 @@ fun PrestamistaApp(
         onLoadAdminLoanDetail = viewModel::loadAdminLoanDetail,
         onLoadMoreAdminLoans = viewModel::loadMoreAdminLoans,
         onSetAdminLoansIncludePaid = viewModel::setAdminLoansIncludePaid,
+        onSetAdminLoansSearch = viewModel::setAdminLoansSearch,
         onRegisterAdminPayment = viewModel::registerAdminPayment,
         onWaiveInstallmentLateFee = viewModel::waiveInstallmentLateFee,
         onGenerateLoanDocument = viewModel::generateLoanDocument,
@@ -206,6 +211,7 @@ private fun AuthenticatedShell(
     onLoadAdminLoanDetail: (Long) -> Unit,
     onLoadMoreAdminLoans: () -> Unit,
     onSetAdminLoansIncludePaid: (Boolean) -> Unit,
+    onSetAdminLoansSearch: (String) -> Unit,
     onRegisterAdminPayment: (Long, String, String, String, Long?, Double?) -> Unit,
     onWaiveInstallmentLateFee: (Long, Long) -> Unit,
     onGenerateLoanDocument: (Long, String) -> Unit,
@@ -350,6 +356,7 @@ private fun AuthenticatedShell(
                             onLoadPaymentDetail(paymentId)
                             navController.navigate(AppRoutes.ReceiptDetail)
                         },
+                        onRefresh = onRefresh,
                     )
                 }
 
@@ -360,6 +367,7 @@ private fun AuthenticatedShell(
                         onOpenInstallment = { installmentId ->
                             navController.navigate(AppRoutes.installmentDetail(installmentId))
                         },
+                        onRefresh = onRefresh,
                     )
                 }
 
@@ -370,6 +378,7 @@ private fun AuthenticatedShell(
                         onOpenClient = { clientId ->
                             navController.navigate(AppRoutes.clientDetail(clientId))
                         },
+                        onRefresh = onRefresh,
                     )
                 }
 
@@ -448,6 +457,7 @@ private fun AuthenticatedShell(
                         generatedLinkWhatsappUrl = state.lastGeneratedRegistrationLink?.whatsappUrl,
                         generatedLinkFormUrl = state.lastGeneratedRegistrationLink?.formUrl,
                         onDismissGeneratedLink = onClearRegistrationLink,
+                        onRefresh = onRefresh,
                     )
                 }
 
@@ -477,6 +487,8 @@ private fun AuthenticatedShell(
                         onLoadMore = onLoadMoreAdminLoans,
                         includePaid = state.adminLoansIncludePaid,
                         onIncludePaidChange = onSetAdminLoansIncludePaid,
+                        searchQuery = state.adminLoansSearch,
+                        onSearchQueryChange = onSetAdminLoansSearch,
                         onSendAccountStatement = if (state.canGenerateDocuments) onSendAccountStatement else null,
                         isSharingDocument = state.isSharingDocument,
                         onOpenQuotes = if (state.canManageQuotes) {
@@ -489,6 +501,8 @@ private fun AuthenticatedShell(
                         } else {
                             null
                         },
+                        isRefreshing = state.isLoading,
+                        onRefresh = onRefresh,
                     )
                 }
 

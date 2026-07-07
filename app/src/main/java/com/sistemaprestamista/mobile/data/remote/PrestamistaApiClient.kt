@@ -1249,6 +1249,10 @@ class PrestamistaApiClient(
                 name = company.optString("name"),
                 status = company.optString("status"),
                 defaultCurrency = company.optString("default_currency", "RD$").ifBlank { "RD$" },
+                enabledLoanCalculationMethods = company.optJSONArray("enabled_loan_calculation_methods")
+                    ?.toStringList()?.takeIf { it.isNotEmpty() },
+                enabledPaymentAllocationModes = company.optJSONArray("enabled_payment_allocation_modes")
+                    ?.toStringList()?.takeIf { it.isNotEmpty() },
             ),
         )
     }
@@ -1380,6 +1384,9 @@ class PrestamistaApiClient(
             remainingBalance = json.optDouble("remaining_balance", 0.0),
             paymentFrequency = json.optString("payment_frequency"),
             status = json.optString("status"),
+            overdueInstallmentsCount = json.optInt("overdue_installments_count", 0),
+            overdueAmountDue = json.optDouble("overdue_amount_due", 0.0),
+            amountDueToday = json.optDouble("amount_due_today", 0.0),
         )
     }
 

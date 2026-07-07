@@ -42,6 +42,13 @@ android {
             ?: ""
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
         buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"$mapsApiKey\"")
+
+        // URL del manifiesto de actualización OTA (latest.json). Configurable sin tocar
+        // código vía -PUPDATE_MANIFEST_URL=... o en local.properties (UPDATE_MANIFEST_URL=...).
+        val updateManifestUrl = (project.findProperty("UPDATE_MANIFEST_URL") as? String)
+            ?: localProperties.getProperty("UPDATE_MANIFEST_URL")
+            ?: "https://prestamista.bsolutions.dev/update/latest.json"
+        buildConfigField("String", "UPDATE_MANIFEST_URL", "\"$updateManifestUrl\"")
     }
 
     buildTypes {

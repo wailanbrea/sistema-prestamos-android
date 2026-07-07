@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +55,8 @@ import androidx.compose.material3.FilterChipDefaults
 import com.sistemaprestamista.mobile.data.model.AllocationMode
 import com.sistemaprestamista.mobile.data.model.InstallmentSummary
 import com.sistemaprestamista.mobile.data.model.PaymentMethod
+import com.sistemaprestamista.mobile.ui.components.LocalEnabledAllocationModes
+import com.sistemaprestamista.mobile.ui.components.RefreshableContent
 import com.sistemaprestamista.mobile.ui.components.rememberCurrency
 import java.util.Locale
 import kotlin.math.min
@@ -82,9 +85,14 @@ internal fun CollectionsScreen(
     state: AppUiState,
     onRegisterPayment: (Long, String, String, String, Long?, Double?) -> Unit,
     onOpenInstallment: (Long) -> Unit,
+    onRefresh: () -> Unit = {},
 ) {
     val installments = state.collectorInstallments
 
+    RefreshableContent(
+        isRefreshing = state.isLoading,
+        onRefresh = onRefresh,
+    ) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -121,6 +129,7 @@ internal fun CollectionsScreen(
                 )
             }
         }
+    }
     }
 }
 
@@ -716,11 +725,31 @@ internal fun AllocationModeSelector(
     onSelected: (AllocationMode) -> Unit,
     includeCapitalPrepayment: Boolean = false,
 ) {
+    // La empresa puede deshabilitar modos desde Configuración web; el backend
+    // rechaza los deshabilitados, así que aquí ni se muestran.
+    val enabledModes = LocalEnabledAllocationModes.current
     val modes = AllocationMode.entries.filter { mode ->
-        when (mode) {
+        val visible = when (mode) {
             AllocationMode.Auto -> hasLateFee
             AllocationMode.CurrentPlusCapital -> includeCapitalPrepayment
             else -> true
+        }
+        visible && (enabledModes == null || mode.apiValue in enabledModes)
+    }.ifEmpty {
+        AllocationMode.entries.filter { mode ->
+            when (mode) {
+                AllocationMode.Auto -> hasLateFee
+                AllocationMode.CurrentPlusCapital -> includeCapitalPrepayment
+                else -> true
+            }
+        }
+    }
+
+    // Si el modo seleccionado quedó deshabilitado, saltar al primero válido
+    // para nunca enviar al backend un modo que va a rechazar.
+    LaunchedEffect(modes, selected) {
+        if (selected !in modes && modes.isNotEmpty()) {
+            onSelected(modes.first())
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
